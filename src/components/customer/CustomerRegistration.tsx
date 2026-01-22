@@ -43,7 +43,7 @@ const CustomerRegistration: React.FC = () => {
             }
 
             // Attempt to start session at specific table
-            const success = startSessionAtTable(table.id, {
+            const success = await startSessionAtTable(table.id, {
                 name: name,
             });
 

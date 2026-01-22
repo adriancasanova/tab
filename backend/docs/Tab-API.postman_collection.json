@@ -1,0 +1,700 @@
+{
+    "info": {
+        "name": "Tab - API Multi-Restaurante",
+        "description": "Colección de endpoints para el sistema de pedidos por mesa con división de consumo",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:3001/api/v1"
+        },
+        {
+            "key": "restaurantId",
+            "value": ""
+        },
+        {
+            "key": "tableId",
+            "value": ""
+        },
+        {
+            "key": "sessionId",
+            "value": ""
+        },
+        {
+            "key": "consumerId",
+            "value": ""
+        },
+        {
+            "key": "productId",
+            "value": ""
+        },
+        {
+            "key": "categoryId",
+            "value": ""
+        }
+    ],
+    "item": [
+        {
+            "name": "🏪 Restaurant",
+            "item": [
+                {
+                    "name": "1. Create Restaurant",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Mi Restaurante Test\",\n  \"slug\": \"mi-restaurante-test\",\n  \"timezone\": \"America/Argentina/Buenos_Aires\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/restaurants",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "restaurants"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "2. Get Restaurant by Slug",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/restaurants/demo-restaurant",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "restaurants",
+                                "demo-restaurant"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "3. Get Menu",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/restaurants/{{restaurantId}}/menu",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "restaurants",
+                                "{{restaurantId}}",
+                                "menu"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "4. Get Active Sessions (Admin)",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/restaurants/{{restaurantId}}/active-sessions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "restaurants",
+                                "{{restaurantId}}",
+                                "active-sessions"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "5. Get Notifications (Admin)",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/restaurants/{{restaurantId}}/notifications",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "restaurants",
+                                "{{restaurantId}}",
+                                "notifications"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "📂 Categories",
+            "item": [
+                {
+                    "name": "Create Category",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Promociones\",\n  \"displayOrder\": 0,\n  \"imageUrl\": \"https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/restaurants/{{restaurantId}}/categories",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "restaurants",
+                                "{{restaurantId}}",
+                                "categories"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🍔 Products",
+            "item": [
+                {
+                    "name": "Create Product",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"categoryId\": \"{{categoryId}}\",\n  \"name\": \"Hamburguesa Doble\",\n  \"description\": \"Doble carne, queso cheddar, bacon\",\n  \"price\": 15000,\n  \"imageUrl\": \"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500\",\n  \"isAvailable\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/restaurants/{{restaurantId}}/products",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "restaurants",
+                                "{{restaurantId}}",
+                                "products"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Product by ID",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/products/{{productId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products",
+                                "{{productId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Product",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Hamburguesa Triple\",\n  \"price\": 18000,\n  \"description\": \"Triple carne con todos los aderezos\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/products/{{productId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products",
+                                "{{productId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Toggle Product Availability (Stock)",
+                    "request": {
+                        "method": "PATCH",
+                        "url": {
+                            "raw": "{{baseUrl}}/products/{{productId}}/availability",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products",
+                                "{{productId}}",
+                                "availability"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Product",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/products/{{productId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products",
+                                "{{productId}}"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🪑 Tables",
+            "item": [
+                {
+                    "name": "Create Single Table",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"number\": \"VIP-1\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/restaurants/{{restaurantId}}/tables",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "restaurants",
+                                "{{restaurantId}}",
+                                "tables"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Multiple Tables (Batch)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"from\": 11,\n  \"to\": 20\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/restaurants/{{restaurantId}}/tables/batch",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "restaurants",
+                                "{{restaurantId}}",
+                                "tables",
+                                "batch"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Table by ID",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/tables/{{tableId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tables",
+                                "{{tableId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Table Number",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"number\": \"Mesa VIP\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/tables/{{tableId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tables",
+                                "{{tableId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Toggle Table Enabled",
+                    "request": {
+                        "method": "PATCH",
+                        "url": {
+                            "raw": "{{baseUrl}}/tables/{{tableId}}/toggle",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tables",
+                                "{{tableId}}",
+                                "toggle"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Table",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/tables/{{tableId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tables",
+                                "{{tableId}}"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "👥 Sessions",
+            "item": [
+                {
+                    "name": "1. Start Session at Table",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"consumerName\": \"Juan\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/tables/{{tableId}}/sessions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "tables",
+                                "{{tableId}}",
+                                "sessions"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "2. Get Session Details",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/sessions/{{sessionId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sessions",
+                                "{{sessionId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "3. Add Consumer to Session",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"María\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/sessions/{{sessionId}}/consumers",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sessions",
+                                "{{sessionId}}",
+                                "consumers"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "4. Add Order Items (with Split)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"prod-1\",\n      \"quantity\": 1,\n      \"consumerIds\": [\"{{consumerId}}\"]\n    },\n    {\n      \"productId\": \"prod-3\",\n      \"quantity\": 2,\n      \"consumerIds\": [\"CONSUMER_1_ID\", \"CONSUMER_2_ID\"]\n    }\n  ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/sessions/{{sessionId}}/orders",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sessions",
+                                "{{sessionId}}",
+                                "orders"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "5. Get Individual Totals",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/sessions/{{sessionId}}/totals",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sessions",
+                                "{{sessionId}}",
+                                "totals"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "6. Update Session Status",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"status\": \"PAYMENT_PENDING\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/sessions/{{sessionId}}/status",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sessions",
+                                "{{sessionId}}",
+                                "status"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🔔 Service Calls",
+            "item": [
+                {
+                    "name": "Call Waiter",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"type\": \"WAITER\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/sessions/{{sessionId}}/service-calls",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sessions",
+                                "{{sessionId}}",
+                                "service-calls"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Request Bill",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"type\": \"BILL\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/sessions/{{sessionId}}/service-calls",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sessions",
+                                "{{sessionId}}",
+                                "service-calls"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Resolve Service Call",
+                    "request": {
+                        "method": "PATCH",
+                        "url": {
+                            "raw": "{{baseUrl}}/service-calls/{{serviceCallId}}/resolve",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "service-calls",
+                                "{{serviceCallId}}",
+                                "resolve"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "📦 Orders",
+            "item": [
+                {
+                    "name": "Get Order by ID",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/orders/{{orderId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "orders",
+                                "{{orderId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Close Order",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"status\": \"CLOSED\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/orders/{{orderId}}/status",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "orders",
+                                "{{orderId}}",
+                                "status"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "❤️ Health Check",
+            "item": [
+                {
+                    "name": "Health Check",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "http://localhost:3001/health",
+                            "host": [
+                                "http://localhost:3001"
+                            ],
+                            "path": [
+                                "health"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

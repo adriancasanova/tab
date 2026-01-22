@@ -46,11 +46,16 @@ export const Menu: React.FC = () => {
         }
     };
 
-    const handleAddToCart = () => {
+    const handleAddToCart = async () => {
         if (selectedProduct && selectedConsumers.length > 0) {
-            addItemToOrder(selectedProduct, quantity, selectedConsumers);
-            setSelectedProduct(null);
-            alert(`✓ ${quantity}x ${selectedProduct.name} agregado al pedido`);
+            try {
+                await addItemToOrder(selectedProduct, quantity, selectedConsumers);
+                setSelectedProduct(null);
+                alert(`✓ ${quantity}x ${selectedProduct.name} agregado al pedido`);
+            } catch (error) {
+                console.error("Error adding item", error);
+                alert("Hubo un error al agregar el item.");
+            }
         }
     };
 

@@ -63,6 +63,16 @@ export interface ServiceCall {
   timestamp: number;
 }
 
+export interface Notification {
+  id: string;
+  type: 'order' | 'waiter' | 'bill';
+  message: string;
+  sessionId: string;
+  tableId: string;
+  timestamp: number;
+  read: boolean;
+}
+
 // Business Analytics Types
 export interface DailyStats {
   date: string;
