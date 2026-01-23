@@ -7,8 +7,13 @@ import routes from './routes';
 const app: Application = express();
 
 // Middleware
+const isDev = config.nodeEnv === 'development';
+
+// Middleware
+// TODO: [SECURITY] Restrict CORS origin in production to specific frontend domain only.
+// Currently allows '*' in development for easier local testing (localhost vs 127.0.0.1 vs port variations).
 app.use(cors({
-    origin: config.frontendUrl,
+    origin: isDev ? '*' : config.frontendUrl,
     credentials: true,
 }));
 app.use(express.json());

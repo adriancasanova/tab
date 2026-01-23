@@ -25,6 +25,15 @@ export const errorHandler = (
         });
     }
 
+    // Handle Prisma Unique Constraint Violation
+    if ((err as any).code === 'P2002') {
+        const target = (err as any).meta?.target;
+        return res.status(400).json({
+            success: false,
+            error: `Duplicate value for unique field: ${target ? target.join(', ') : 'unknown'}`,
+        });
+    }
+
     console.error('Unexpected error:', err);
     return res.status(500).json({
         success: false,
