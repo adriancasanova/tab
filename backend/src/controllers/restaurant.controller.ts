@@ -31,7 +31,7 @@ export class RestaurantController {
                 where: { slug },
                 include: {
                     categories: { where: { isActive: true }, orderBy: { displayOrder: 'asc' } },
-                    tables: { where: { isEnabled: true } },
+                    tables: true,
                 },
             });
 
