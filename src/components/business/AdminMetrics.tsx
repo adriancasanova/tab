@@ -34,7 +34,7 @@ export const AdminMetrics: React.FC = () => {
                 return {
                     id,
                     name: product?.name || 'Producto Desconocido',
-                    image: product?.image,
+                    image: product?.imageUrl,
                     quantity: data.quantity,
                     revenue: data.revenue
                 };

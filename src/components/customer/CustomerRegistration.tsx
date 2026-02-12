@@ -2,20 +2,45 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 
-const CustomerRegistration: React.FC = () => {
-    const { tables, startSessionAtTable, startGuestSession } = useApp();
+interface CustomerRegistrationProps {
+    tableNumber?: string;
+}
+
+const CustomerRegistration: React.FC<CustomerRegistrationProps> = ({ tableNumber: propTableNumber }) => {
+    const { tables, startSessionAtTable, startGuestSession, restaurantSlug, isLoading: isAppLoading } = useApp();
     const navigate = useNavigate();
 
     const [searchParams] = useSearchParams();
-    const urlTableNumber = searchParams.get('table');
+    const urlTableNumber = propTableNumber || searchParams.get('table');
+
+    console.log('🔍 CustomerRegistration mounted:', {
+        propTableNumber,
+        urlTableNumber,
+        restaurantSlug,
+        searchParamsTable: searchParams.get('table')
+    });
 
     const [name, setName] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+    // Show loading while tables are being fetched
+    if (isAppLoading) {
+        return (
+            <div className="fullscreen-bg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="fullscreen-overlay" />
+                <div style={{ textAlign: 'center', color: 'var(--color-text)', zIndex: 10 }}>
+                    <div style={{ fontSize: '2rem', marginBottom: 'var(--spacing-md)' }}>⏳</div>
+                    <p>Cargando mesa...</p>
+                </div>
+            </div>
+        );
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
+        setError('');
 
         // Basic Validation
         if (!name.trim()) {
@@ -27,11 +52,13 @@ const CustomerRegistration: React.FC = () => {
         const tableNumberToUse = urlTableNumber;
 
         if (tableNumberToUse) {
-            // Find table by number
-            const table = tables.find(t => t.number === tableNumberToUse);
+            // Find table by number (compare as strings)
+            const table = tables.find(t => String(t.number) === String(tableNumberToUse));
 
             if (!table) {
-                setError('Número de mesa inválido');
+                console.log('Tables available:', tables.map(t => t.number));
+                console.log('Looking for table number:', tableNumberToUse);
+                setError(`Mesa ${tableNumberToUse} no encontrada`);
                 setIsLoading(false);
                 return;
             }
@@ -43,7 +70,7 @@ const CustomerRegistration: React.FC = () => {
             }
 
             // Attempt to start session at specific table
-            const success = startSessionAtTable(table.id, {
+            const success = await startSessionAtTable(table.id, {
                 name: name,
             });
 
@@ -54,14 +81,29 @@ const CustomerRegistration: React.FC = () => {
             }
         } else {
             // Start guest session without table
-            startGuestSession({
+            await startGuestSession({
                 name: name,
             });
         }
 
-        // Success redirect
+        // Success redirect - navigate to restaurant-specific customer view
         setTimeout(() => {
-            navigate('/users');
+            console.log('🔍 Debug redirect:', {
+                tableNumberToUse,
+                restaurantSlug,
+                urlTableNumber,
+                propTableNumber
+            });
+
+            if (tableNumberToUse) {
+                const targetUrl = `/${restaurantSlug}/table/${tableNumberToUse}/users`;
+                console.log('✅ Redirecting to:', targetUrl);
+                navigate(targetUrl);
+            } else {
+                console.log('⚠️ No table number, redirecting to /users');
+                // Fallback for guest sessions (no table)
+                navigate('/users');
+            }
         }, 800);
     };
 

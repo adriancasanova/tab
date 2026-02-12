@@ -1,12 +1,21 @@
 export type UserRole = 'business' | 'customer';
 
+export interface Category {
+  id: string;
+  name: string;
+  restaurantId?: string;
+  imageUrl?: string;
+  displayOrder?: number;
+  isActive?: boolean;
+}
+
 export interface Product {
   id: string;
   name: string;
   description: string;
   price: number;
-  category: string;
-  image: string;
+  category: Category | string;
+  imageUrl: string;
   isAvailable: boolean;
 }
 
@@ -61,6 +70,16 @@ export interface ServiceCall {
   type: 'waiter' | 'bill' | 'other';
   status: 'pending' | 'resolved';
   timestamp: number;
+}
+
+export interface Notification {
+  id: string;
+  type: 'order' | 'waiter' | 'bill';
+  message: string;
+  sessionId: string;
+  tableId: string;
+  timestamp: number;
+  read: boolean;
 }
 
 // Business Analytics Types

@@ -1,423 +1,316 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Session, Consumer, Product, Order, OrderItem, ServiceCall, Table } from '../types';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import type { Session, Consumer, Product, Category, Table, Notification } from '../types';
+import { api } from '../services/api';
 
-// Storage keys
 const STORAGE_KEYS = {
-    SESSION: 'gastrosplit_session',
-    PRODUCTS: 'gastrosplit_products',
-    ALL_SESSIONS: 'gastrosplit_all_sessions',
-    TABLES: 'gastrosplit_tables',
+    SESSION_ID: 'gastrosplit_session_id',
+    USER_ID: 'gastrosplit_user_id', // To remember who 'I' am in the session
 };
 
-// Default products
-const DEFAULT_PRODUCTS: Product[] = [
-    { id: 'p1', name: 'Pizza Margherita', description: 'Tomate, mozzarella, albahaca fresca.', price: 12000, category: 'Comida', image: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=500&q=80', isAvailable: true },
-    { id: 'p2', name: 'Salmón Rosado', description: 'Grillado con vegetales de estación.', price: 25000, category: 'Comida', image: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=500&q=80', isAvailable: true },
-    { id: 'p3', name: 'Cerveza IPA', description: 'Artesanal, lupulada y refrescante.', price: 5000, category: 'Bebidas', image: 'https://images.unsplash.com/photo-1566633806327-68e152aaf26d?auto=format&fit=crop&w=500&q=80', isAvailable: true },
-    { id: 'p4', name: 'Tiramisú', description: 'Clásico postre italiano.', price: 6500, category: 'Postres', image: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=500&q=80', isAvailable: true },
-    { id: 'p5', name: 'Agua Mineral', description: 'Con o sin gas, 500ml.', price: 2000, category: 'Bebidas', image: 'https://images.unsplash.com/photo-1564419320461-6870880221ad?auto=format&fit=crop&w=500&q=80', isAvailable: true },
-    { id: 'p6', name: 'Ensalada César', description: 'Lechuga, pollo, parmesano, croutones.', price: 9500, category: 'Entradas', image: 'https://images.unsplash.com/photo-1546793665-c74683f339c1?auto=format&fit=crop&w=500&q=80', isAvailable: true },
-];
+const RESTAURANT_SLUG = import.meta.env.VITE_RESTAURANT_SLUG || 'demo-restaurant';
 
-interface AppState {
+
+
+interface AppContextType {
     session: Session | null;
     currentUser: Consumer | null;
     products: Product[];
+    categories: Category[];
     tables: Table[];
     allSessions: Session[];
     notifications: Notification[];
-}
+    restaurantId: string | null;
+    restaurantSlug: string;
+    isLoading: boolean;
+    error: string | null;
 
-interface Notification {
-    id: string;
-    type: 'order' | 'waiter' | 'bill';
-    message: string;
-    sessionId: string;
-    tableId: string;
-    timestamp: number;
-    read: boolean;
-}
-
-interface AppContextType extends AppState {
-    // Session management
-    startSessionAtTable: (tableId: string, userData: { name: string, age?: number, email?: string, phone?: string }) => boolean;
-    startGuestSession: (userData: { name: string }) => void;
-    joinSession: (name: string) => void;
-    addConsumerToSession: (name: string) => void;
+    // Actions
+    startSessionAtTable: (tableId: string, userData: { name: string }) => Promise<boolean>;
+    startGuestSession: (userData: { name: string }) => Promise<void>; // Not fully supported by backend yet, will mock or error
+    joinSession: (sessionId: string, name: string) => Promise<void>;
+    addConsumerToSession: (name: string) => Promise<void>;
     leaveSession: () => void;
 
-    // Orders
-    addItemToOrder: (product: Product, quantity: number, consumerIds: string[]) => void;
+    // Order
+    addItemToOrder: (product: Product, quantity: number, consumerIds: string[]) => Promise<void>;
 
-    // Service
-    callWaiter: () => void;
-    callWaiterWithoutSession: () => void;
-    requestBill: () => void;
+    // Services
+    callWaiter: () => Promise<void>;
+    callWaiterWithoutSession: () => Promise<void>; // Mock for now
+    requestBill: () => Promise<void>;
 
-    // Products (Admin)
-    addProduct: (product: Omit<Product, 'id'>) => void;
-    updateProduct: (product: Product) => void;
-    deleteProduct: (productId: string) => void;
-
-    // Tables (Admin)
-    addTable: (tableNumber: string) => void;
-    addMultipleTables: (from: number, to: number) => void;
-    updateTable: (tableId: string, newNumber: string) => void;
-    toggleTableEnabled: (tableId: string) => void;
-    deleteTable: (tableId: string) => void;
-    getEnabledTables: () => Table[];
+    // Admin
+    refreshData: () => Promise<void>;
+    addProduct: (product: any) => Promise<void>;
+    updateProduct: (product: Product) => Promise<void>;
+    deleteProduct: (productId: string) => Promise<void>;
+    addTable: (number: string) => Promise<void>;
+    updateTable: (tableId: string, number: string) => Promise<void>;
+    toggleTableEnabled: (tableId: string) => Promise<void>;
 
     // Notifications
-    markNotificationRead: (notificationId: string) => void;
-    resolveServiceCall: (sessionId: string, callId: string) => void;
+    markNotificationRead: (id: string) => void; // Local only for now or need endpoint
+    resolveServiceCall: (sessionId: string, callId: string) => Promise<void>;
+
+    // Helpers & Stubs (Legacy support)
+    addMultipleTables: (from: number, to: number) => Promise<void>;
+    deleteTable: (tableId: string) => Promise<void>;
+    getEnabledTables: () => Table[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+interface AppProviderProps {
+    children: React.ReactNode;
+    restaurantSlug?: string;
+}
+
+export const AppProvider: React.FC<AppProviderProps> = ({ children, restaurantSlug }) => {
+    // Use prop if provided, otherwise fallback to env var
+    const activeSlug = restaurantSlug || RESTAURANT_SLUG;
+
     const [session, setSession] = useState<Session | null>(null);
     const [currentUser, setCurrentUser] = useState<Consumer | null>(null);
-    const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [tables, setTables] = useState<Table[]>([]);
     const [allSessions, setAllSessions] = useState<Session[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [restaurantId, setRestaurantId] = useState<string | null>(null);
 
-    // Load from localStorage on mount
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Initial Load
     useEffect(() => {
-        const savedSession = localStorage.getItem(STORAGE_KEYS.SESSION);
-        const savedProducts = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-        const savedAllSessions = localStorage.getItem(STORAGE_KEYS.ALL_SESSIONS);
-        const savedTables = localStorage.getItem(STORAGE_KEYS.TABLES);
+        const init = async () => {
+            setIsLoading(true);
+            try {
+                // 1. Get Restaurant & Tables
+                const restaurant = await api.getRestaurant(activeSlug);
+                setRestaurantId(restaurant.id);
+                setTables(restaurant.tables || []);
 
-        if (savedSession) {
-            const parsed = JSON.parse(savedSession);
-            setSession(parsed.session);
-            setCurrentUser(parsed.currentUser);
-        }
-        if (savedProducts) {
-            setProducts(JSON.parse(savedProducts));
-        }
-        if (savedAllSessions) {
-            setAllSessions(JSON.parse(savedAllSessions));
-        }
-        if (savedTables) {
-            setTables(JSON.parse(savedTables));
-        }
-    }, []);
+                // 2. Get Menu
+                const menu = await api.getMenu(restaurant.id);
+                setProducts(menu.products || []);
+                setCategories(menu.categories || []);
 
-    // Save to localStorage on changes
-    useEffect(() => {
-        if (session) {
-            localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify({ session, currentUser }));
-            setAllSessions(prev => {
-                const existing = prev.findIndex(s => s.id === session.id);
-                if (existing >= 0) {
-                    const updated = [...prev];
-                    updated[existing] = session;
-                    return updated;
+                // 3. Restore Session
+                const savedSessionId = localStorage.getItem(STORAGE_KEYS.SESSION_ID);
+                const savedUserId = localStorage.getItem(STORAGE_KEYS.USER_ID);
+
+                if (savedSessionId) {
+                    try {
+                        const sessionData = await api.getSession(savedSessionId);
+                        setSession(sessionData);
+
+                        if (savedUserId) {
+                            const me = sessionData.consumers.find(c => c.id === savedUserId);
+                            if (me) setCurrentUser(me);
+                        }
+                    } catch (e) {
+                        console.warn('Could not restore session', e);
+                        localStorage.removeItem(STORAGE_KEYS.SESSION_ID);
+                        localStorage.removeItem(STORAGE_KEYS.USER_ID);
+                    }
                 }
-                return [...prev, session];
-            });
-        }
-    }, [session, currentUser]);
-
-    useEffect(() => {
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
-    }, [products]);
-
-    useEffect(() => {
-        localStorage.setItem(STORAGE_KEYS.ALL_SESSIONS, JSON.stringify(allSessions));
-    }, [allSessions]);
-
-    useEffect(() => {
-        localStorage.setItem(STORAGE_KEYS.TABLES, JSON.stringify(tables));
-    }, [tables]);
-
-    // Session Management
-    const startSessionAtTable = useCallback((tableId: string, userData: { name: string, age?: number, email?: string, phone?: string }): boolean => {
-        // Check if table exists and is enabled
-        const table = tables.find(t => t.id === tableId);
-        if (!table || !table.isEnabled) {
-            return false;
-        }
-
-        const newUser: Consumer = {
-            id: crypto.randomUUID(),
-            sessionId: '',
-            name: userData.name,
-            age: userData.age,
-            email: userData.email,
-            phone: userData.phone,
-            isGuest: true,
-            visitCount: 1,
+            } catch (err: any) {
+                setError(err.message);
+            } finally {
+                setIsLoading(false);
+            }
         };
-
-        const newSession: Session = {
-            id: crypto.randomUUID(),
-            tableId: table.number,
-            businessId: 'biz_001',
-            status: 'active',
-            startTime: Date.now(),
-            consumers: [newUser],
-            orders: [],
-            serviceCalls: [],
-        };
-
-        newUser.sessionId = newSession.id;
-
-        // Update table with current session
-        setTables(prev => prev.map(t =>
-            t.id === tableId ? { ...t, currentSessionId: newSession.id } : t
-        ));
-
-        setSession(newSession);
-        setCurrentUser(newUser);
-        return true;
-    }, [tables]);
-
-    const startGuestSession = useCallback((userData: { name: string }) => {
-        const newUser: Consumer = {
-            id: crypto.randomUUID(),
-            sessionId: '',
-            name: userData.name,
-            isGuest: true,
-            visitCount: 1,
-        };
-
-        const newSession: Session = {
-            id: crypto.randomUUID(),
-            tableId: 'Pendiente',
-            businessId: 'biz_001',
-            status: 'active',
-            startTime: Date.now(),
-            consumers: [newUser],
-            orders: [],
-            serviceCalls: [],
-        };
-
-        newUser.sessionId = newSession.id;
-
-        setSession(newSession);
-        setCurrentUser(newUser);
+        init();
     }, []);
 
-    const joinSession = useCallback((name: string) => {
+    // Helper to refresh session state
+    const refreshSession = async () => {
         if (!session) return;
+        try {
+            const updated = await api.getSession(session.id);
+            setSession(updated);
+        } catch (e) {
+            console.error('Error refreshing session', e);
+        }
+    };
 
-        const newUser: Consumer = {
-            id: crypto.randomUUID(),
-            sessionId: session.id,
-            name,
-            isGuest: true,
-            visitCount: 1,
-        };
+    const startSessionAtTable = async (tableId: string, userData: { name: string }): Promise<boolean> => {
+        try {
+            setIsLoading(true);
+            const newSession = await api.startSession(tableId, userData.name);
+            setSession(newSession);
 
-        setSession(prev => prev ? ({ ...prev, consumers: [...prev.consumers, newUser] }) : null);
-        setCurrentUser(newUser);
-    }, [session]);
+            // Find the current user - they are the last consumer added (most recent)
+            // When joining an existing session, we're not necessarily the first
+            const me = newSession.consumers[newSession.consumers.length - 1];
+            setCurrentUser(me);
 
-    const addConsumerToSession = useCallback((name: string) => {
+            localStorage.setItem(STORAGE_KEYS.SESSION_ID, newSession.id);
+            localStorage.setItem(STORAGE_KEYS.USER_ID, me.id);
+            return true;
+        } catch (err: any) {
+            setError(err.message);
+            return false;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const startGuestSession = async (_userData: { name: string }) => {
+        console.warn('Guest session not implemented in backend yet');
+    };
+
+    const joinSession = async (sessionId: string, name: string) => {
+        try {
+            const consumer = await api.addConsumer(sessionId, name);
+            // We need to fetch the full session to update state
+            const updatedSession = await api.getSession(sessionId);
+            setSession(updatedSession);
+            setCurrentUser(consumer);
+
+            localStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
+            localStorage.setItem(STORAGE_KEYS.USER_ID, consumer.id);
+        } catch (err: any) {
+            setError(err.message);
+            throw err;
+        }
+    };
+
+    const addConsumerToSession = async (name: string) => {
         if (!session) return;
+        try {
+            setIsLoading(true);
+            await api.addConsumer(session.id, name);
+            await refreshSession();
+        } catch (err: any) {
+            setError(err.message);
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-        const newConsumer: Consumer = {
-            id: crypto.randomUUID(),
-            sessionId: session.id,
-            name,
-            isGuest: true,
-            visitCount: 1,
-        };
-
-        setSession(prev => prev ? ({ ...prev, consumers: [...prev.consumers, newConsumer] }) : null);
-    }, [session]);
-
-    const leaveSession = useCallback(() => {
+    const leaveSession = () => {
         setSession(null);
         setCurrentUser(null);
-        localStorage.removeItem(STORAGE_KEYS.SESSION);
-    }, []);
+        localStorage.removeItem(STORAGE_KEYS.SESSION_ID);
+        localStorage.removeItem(STORAGE_KEYS.USER_ID);
+    };
 
-    // Orders
-    const addItemToOrder = useCallback((product: Product, quantity: number, consumerIds: string[]) => {
+    const addItemToOrder = async (product: Product, quantity: number, consumerIds: string[]) => {
         if (!session) return;
-
-        const newItem: OrderItem = {
-            id: crypto.randomUUID(),
-            productId: product.id,
-            product,
-            quantity,
-            consumerIds,
-            status: 'pending',
-            timestamp: Date.now(),
-        };
-
-        const newOrder: Order = {
-            id: crypto.randomUUID(),
-            sessionId: session.id,
-            items: [newItem],
-            status: 'open',
-            createdAt: Date.now(),
-        };
-
-        setSession(prev => {
-            if (!prev) return null;
-            return { ...prev, orders: [...prev.orders, newOrder] };
-        });
-
-        const notification: Notification = {
-            id: crypto.randomUUID(),
-            type: 'order',
-            message: `Nuevo pedido: ${quantity}x ${product.name}`,
-            sessionId: session.id,
-            tableId: session.tableId,
-            timestamp: Date.now(),
-            read: false,
-        };
-        setNotifications(prev => [notification, ...prev]);
-    }, [session]);
-
-    // Service
-    const callWaiter = useCallback(() => {
-        if (!session) return;
-
-        const call: ServiceCall = {
-            id: crypto.randomUUID(),
-            sessionId: session.id,
-            type: 'waiter',
-            status: 'pending',
-            timestamp: Date.now(),
-        };
-
-        setSession(prev => prev ? ({ ...prev, serviceCalls: [...prev.serviceCalls, call] }) : null);
-
-        const notification: Notification = {
-            id: crypto.randomUUID(),
-            type: 'waiter',
-            message: `Mesa ${session.tableId} solicita mozo`,
-            sessionId: session.id,
-            tableId: session.tableId,
-            timestamp: Date.now(),
-            read: false,
-        };
-        setNotifications(prev => [notification, ...prev]);
-    }, [session]);
-
-    const callWaiterWithoutSession = useCallback(() => {
-        const notification: Notification = {
-            id: crypto.randomUUID(),
-            type: 'waiter',
-            message: 'Un cliente en la entrada solicita un mozo con el QR',
-            sessionId: 'entrance',
-            tableId: 'Entrada',
-            timestamp: Date.now(),
-            read: false,
-        };
-        setNotifications(prev => [notification, ...prev]);
-    }, []);
-
-    const requestBill = useCallback(() => {
-        if (!session) return;
-
-        const call: ServiceCall = {
-            id: crypto.randomUUID(),
-            sessionId: session.id,
-            type: 'bill',
-            status: 'pending',
-            timestamp: Date.now(),
-        };
-
-        setSession(prev => prev ? ({ ...prev, serviceCalls: [...prev.serviceCalls, call], status: 'payment_pending' }) : null);
-
-        const notification: Notification = {
-            id: crypto.randomUUID(),
-            type: 'bill',
-            message: `Mesa ${session.tableId} solicita la cuenta`,
-            sessionId: session.id,
-            tableId: session.tableId,
-            timestamp: Date.now(),
-            read: false,
-        };
-        setNotifications(prev => [notification, ...prev]);
-    }, [session]);
-
-    // Products (Admin)
-    const addProduct = useCallback((productData: Omit<Product, 'id'>) => {
-        const newProduct: Product = { ...productData, id: crypto.randomUUID() };
-        setProducts(prev => [...prev, newProduct]);
-    }, []);
-
-    const updateProduct = useCallback((product: Product) => {
-        setProducts(prev => prev.map(p => p.id === product.id ? product : p));
-    }, []);
-
-    const deleteProduct = useCallback((productId: string) => {
-        setProducts(prev => prev.filter(p => p.id !== productId));
-    }, []);
-
-    // Tables (Admin)
-    const addTable = useCallback((tableNumber: string) => {
-        const newTable: Table = {
-            id: crypto.randomUUID(),
-            number: tableNumber,
-            isEnabled: true,
-            createdAt: Date.now(),
-        };
-        setTables(prev => [...prev, newTable]);
-    }, []);
-
-    const addMultipleTables = useCallback((from: number, to: number) => {
-        const newTables: Table[] = [];
-        for (let i = from; i <= to; i++) {
-            newTables.push({
-                id: crypto.randomUUID(),
-                number: String(i),
-                isEnabled: true,
-                createdAt: Date.now(),
-            });
+        try {
+            await api.addOrder(session.id, [{ productId: product.id, quantity, consumerIds }]);
+            await refreshSession(); // Update local state
+        } catch (err: any) {
+            setError(err.message);
+            alert('Error adding item: ' + err.message);
         }
-        setTables(prev => [...prev, ...newTables]);
-    }, []);
+    };
 
-    const updateTable = useCallback((tableId: string, newNumber: string) => {
-        setTables(prev => prev.map(t => t.id === tableId ? { ...t, number: newNumber } : t));
-    }, []);
+    const callWaiter = async () => {
+        if (!session) return;
+        try {
+            await api.createServiceCall(session.id, 'WAITER');
+            // Optimistic update or refresh?
+            // Backend doesn't return the full session on call creation, usually.
+            // Let's refresh to confirm.
+            await refreshSession();
+        } catch (err: any) {
+            setError(err.message);
+        }
+    };
 
-    const toggleTableEnabled = useCallback((tableId: string) => {
-        setTables(prev => prev.map(t => t.id === tableId ? { ...t, isEnabled: !t.isEnabled } : t));
-    }, []);
+    const requestBill = async () => {
+        if (!session) return;
+        try {
+            await api.createServiceCall(session.id, 'BILL');
+            await refreshSession();
+        } catch (err: any) {
+            setError(err.message);
+        }
+    };
 
-    const deleteTable = useCallback((tableId: string) => {
-        setTables(prev => prev.filter(t => t.id !== tableId));
-    }, []);
+    const callWaiterWithoutSession = async () => {
+        if (!restaurantId) return;
+        try {
+            await api.createServiceCallWithoutSession(restaurantId, 'WAITER');
+        } catch (err: any) {
+            console.error('Failed to call waiter from entrance:', err);
+            setError(err.message);
+        }
+    };
 
-    const getEnabledTables = useCallback(() => {
-        return tables.filter(t => t.isEnabled);
-    }, [tables]);
+    // Admin
+    const refreshData = async () => {
+        if (!restaurantId) return;
+        setIsLoading(true);
+        try {
+            // Refresh tables (via restaurant endpoint)
+            const restaurant = await api.getRestaurant(activeSlug);
+            setTables(restaurant.tables || []);
 
-    // Notifications
-    const markNotificationRead = useCallback((notificationId: string) => {
-        setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, read: true } : n));
-    }, []);
+            const activeSessions = await api.getActiveSessions(restaurantId);
+            setAllSessions(activeSessions);
 
-    const resolveServiceCall = useCallback((sessionId: string, callId: string) => {
-        setAllSessions(prev => prev.map(s => {
-            if (s.id === sessionId) {
-                return {
-                    ...s,
-                    serviceCalls: s.serviceCalls.map(c => c.id === callId ? { ...c, status: 'resolved' as const } : c),
-                };
-            }
-            return s;
-        }));
-    }, []);
+            const notifs = await api.getNotifications(restaurantId);
+            // Map backend notifications to frontend shape if needed
+            // For now assuming compatible or ignoring extra fields
+            setNotifications(notifs);
+
+            // Also refresh menu
+            const menu = await api.getMenu(restaurantId);
+            setProducts(menu.products || []);
+            setCategories(menu.categories || []);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Stub Admin methods
+    const addProduct = async (product: any) => {
+        if (!restaurantId) {
+            throw new Error('No se encontró el ID del restaurante');
+        }
+        try {
+            await api.createProduct(restaurantId, product);
+            await refreshData();
+        } catch (error) {
+            console.error('Error creating product:', error);
+            throw error;
+        }
+    };
+    const updateProduct = async (product: Product) => { await api.updateProduct(product.id, product); await refreshData(); };
+    const deleteProduct = async (id: string) => { await api.deleteProduct(id); await refreshData(); };
+    const addTable = async (num: string) => { if (restaurantId) await api.createTable(restaurantId, num); await refreshData(); };
+    const updateTable = async (id: string, num: string) => { await api.updateTable(id, num); await refreshData(); };
+    const toggleTableEnabled = async (id: string) => { await api.toggleTable(id); await refreshData(); };
+
+    const resolveServiceCall = async (_sessionId: string, callId: string) => {
+        await api.resolveServiceCall(callId);
+        await refreshData();
+    };
+
+    const markNotificationRead = (id: string) => {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    };
 
     return (
         <AppContext.Provider value={{
             session,
             currentUser,
             products,
+            categories,
             tables,
             allSessions,
             notifications,
+            restaurantId,
+            restaurantSlug: activeSlug,
+            isLoading,
+            error,
             startSessionAtTable,
             startGuestSession,
             joinSession,
@@ -427,15 +320,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             callWaiter,
             callWaiterWithoutSession,
             requestBill,
+            refreshData,
             addProduct,
             updateProduct,
             deleteProduct,
             addTable,
-            addMultipleTables,
+            addMultipleTables: async (from: number, to: number) => {
+                if (!restaurantId) return;
+                setIsLoading(true);
+                try {
+                    // Loop execution for now
+                    const promises = [];
+                    for (let i = from; i <= to; i++) {
+                        promises.push(api.createTable(restaurantId, i.toString()));
+                    }
+                    await Promise.all(promises);
+                    await refreshData();
+                } catch (e) {
+                    console.error(e);
+                } finally {
+                    setIsLoading(false);
+                }
+            },
             updateTable,
             toggleTableEnabled,
-            deleteTable,
-            getEnabledTables,
+            getEnabledTables: () => tables.filter(t => t.isEnabled), // Helper
+            deleteTable: async (tableId: string) => {
+                await api.deleteTable(tableId);
+                await refreshData();
+            },
             markNotificationRead,
             resolveServiceCall,
         }}>

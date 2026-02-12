@@ -1,0 +1,277 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============== USERS (Business Owners) ==============
+
+enum UserStatus {
+  ACTIVE
+  TRIAL
+  INACTIVE
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+model User {
+  id            String     @id @default(uuid())
+  email         String     @unique
+  passwordHash  String     @map("password_hash")
+  role          UserRole   @default(OWNER)
+  status        UserStatus @default(TRIAL)
+  
+  // Profile & Analytics
+  firstName     String?    @map("first_name")
+  lastName      String?    @map("last_name")
+  phone         String?
+  businessName  String?    @map("business_name")
+  
+  // Timestamps
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  lastLoginAt   DateTime?  @map("last_login_at")
+  trialEndsAt   DateTime?  @map("trial_ends_at")
+  
+  restaurants   Restaurant[]
+  
+  @@map("users")
+}
+
+// ============== RESTAURANT (Multi-tenant) ==============
+
+model Restaurant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  ownerId   String?  @map("owner_id")
+  timezone  String   @default("America/Argentina/Buenos_Aires")
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner        User?         @relation(fields: [ownerId], references: [id])
+  categories   Category[]
+  products     Product[]
+  tables       Table[]
+  serviceCalls ServiceCall[]
+  domainEvents DomainEvent[]
+
+  @@index([ownerId])
+  @@map("restaurants")
+}
+
+// ============== MENU ==============
+
+model Category {
+  id           String  @id @default(uuid())
+  restaurantId String  @map("restaurant_id")
+  name         String
+  imageUrl     String? @map("image_url")
+  displayOrder Int     @default(0) @map("display_order")
+  isActive     Boolean @default(true) @map("is_active")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  products   Product[]
+
+  @@index([restaurantId])
+  @@map("categories")
+}
+
+model Product {
+  id           String  @id @default(uuid())
+  restaurantId String  @map("restaurant_id")
+  categoryId   String  @map("category_id")
+  name         String
+  description  String  @default("")
+  price        Decimal @db.Decimal(10, 2)
+  imageUrl     String? @map("image_url")
+  isAvailable  Boolean @default(true) @map("is_available")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category   Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@index([restaurantId])
+  @@index([categoryId])
+  @@map("products")
+}
+
+// ============== TABLES & SESSIONS ==============
+
+model Table {
+  id           String  @id @default(uuid())
+  restaurantId String  @map("restaurant_id")
+  number       String
+  isEnabled    Boolean @default(true) @map("is_enabled")
+  qrCodeUrl    String? @map("qr_code_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  sessions   Session[]
+
+  @@unique([restaurantId, number])
+  @@index([restaurantId])
+  @@map("tables")
+}
+
+enum SessionStatus {
+  ACTIVE
+  PAYMENT_PENDING
+  CLOSED
+}
+
+model Session {
+  id       String        @id @default(uuid())
+  tableId  String        @map("table_id")
+  status   SessionStatus @default(ACTIVE)
+
+  startedAt DateTime  @default(now()) @map("started_at")
+  endedAt   DateTime? @map("ended_at")
+
+  table        Table         @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  consumers    Consumer[]
+  order        Order?
+  serviceCalls ServiceCall[]
+
+  @@index([tableId])
+  @@index([status])
+  @@map("sessions")
+}
+
+// ============== CONSUMERS ==============
+
+model Consumer {
+  id        String @id @default(uuid())
+  sessionId String @map("session_id")
+  name      String
+
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  session    Session             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  orderItems OrderItemConsumer[]
+
+  @@index([sessionId])
+  @@map("consumers")
+}
+
+// ============== ORDERS ==============
+
+enum OrderStatus {
+  OPEN
+  CLOSED
+}
+
+model Order {
+  id        String      @id @default(uuid())
+  sessionId String      @unique @map("session_id")
+  status    OrderStatus @default(OPEN)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  items   OrderItem[]
+
+  @@map("orders")
+}
+
+enum OrderItemStatus {
+  PENDING
+  PREPARING
+  SERVED
+  CANCELLED
+}
+
+model OrderItem {
+  id        String          @id @default(uuid())
+  orderId   String          @map("order_id")
+  productId String          @map("product_id")
+  quantity  Int             @default(1)
+  unitPrice Decimal         @db.Decimal(10, 2) @map("unit_price")
+  status    OrderItemStatus @default(PENDING)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  consumers OrderItemConsumer[]
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+// N:M relation for item splitting between consumers
+model OrderItemConsumer {
+  orderItemId String @map("order_item_id")
+  consumerId  String @map("consumer_id")
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  consumer  Consumer  @relation(fields: [consumerId], references: [id], onDelete: Cascade)
+
+  @@id([orderItemId, consumerId])
+  @@index([consumerId])
+  @@map("order_item_consumers")
+}
+
+// ============== SERVICE CALLS ==============
+
+enum ServiceCallType {
+  WAITER
+  BILL
+  OTHER
+}
+
+enum ServiceCallStatus {
+  PENDING
+  RESOLVED
+}
+
+model ServiceCall {
+  id        String            @id @default(uuid())
+  sessionId String?           @map("session_id")
+  restaurantId String?        @map("restaurant_id")
+  type      ServiceCallType
+  status    ServiceCallStatus @default(PENDING)
+
+  createdAt  DateTime  @default(now()) @map("created_at")
+  resolvedAt DateTime? @map("resolved_at")
+
+  session    Session?    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([restaurantId])
+  @@index([status])
+  @@map("service_calls")
+}
+
+// ============== DOMAIN EVENTS (Analytics) ==============
+
+model DomainEvent {
+  id           String   @id @default(uuid())
+  restaurantId String   @map("restaurant_id")
+  eventType    String   @map("event_type")
+  payload      Json     @default("{}")
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@index([eventType])
+  @@index([occurredAt])
+  @@map("domain_events")
+}
