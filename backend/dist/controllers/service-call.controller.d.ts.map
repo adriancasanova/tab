@@ -1,0 +1,1 @@
+{"version":3,"file":"service-call.controller.d.ts","sourceRoot":"","sources":["../../src/controllers/service-call.controller.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,QAAQ,EAAE,YAAY,EAAE,MAAM,SAAS,CAAC;AAI1D,qBAAa,qBAAqB;IACxB,OAAO,CAAC,GAAG,EAAE,OAAO,EAAE,GAAG,EAAE,QAAQ,EAAE,IAAI,EAAE,YAAY;CAiBhE"}
