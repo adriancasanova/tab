@@ -10,22 +10,64 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============== USERS (Business Owners) ==============
+
+enum UserStatus {
+  ACTIVE
+  TRIAL
+  INACTIVE
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+model User {
+  id            String     @id @default(uuid())
+  email         String     @unique
+  passwordHash  String     @map("password_hash")
+  role          UserRole   @default(OWNER)
+  status        UserStatus @default(TRIAL)
+  
+  // Profile & Analytics
+  firstName     String?    @map("first_name")
+  lastName      String?    @map("last_name")
+  phone         String?
+  businessName  String?    @map("business_name")
+  
+  // Timestamps
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  lastLoginAt   DateTime?  @map("last_login_at")
+  trialEndsAt   DateTime?  @map("trial_ends_at")
+  
+  restaurants   Restaurant[]
+  
+  @@map("users")
+}
+
 // ============== RESTAURANT (Multi-tenant) ==============
 
 model Restaurant {
   id        String   @id @default(uuid())
   name      String
   slug      String   @unique
+  ownerId   String?  @map("owner_id")
   timezone  String   @default("America/Argentina/Buenos_Aires")
   settings  Json     @default("{}")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  owner        User?         @relation(fields: [ownerId], references: [id])
   categories   Category[]
   products     Product[]
   tables       Table[]
+  serviceCalls ServiceCall[]
   domainEvents DomainEvent[]
 
+  @@index([ownerId])
   @@map("restaurants")
 }
 
@@ -200,16 +242,19 @@ enum ServiceCallStatus {
 
 model ServiceCall {
   id        String            @id @default(uuid())
-  sessionId String            @map("session_id")
+  sessionId String?           @map("session_id")
+  restaurantId String?        @map("restaurant_id")
   type      ServiceCallType
   status    ServiceCallStatus @default(PENDING)
 
   createdAt  DateTime  @default(now()) @map("created_at")
   resolvedAt DateTime? @map("resolved_at")
 
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session    Session?    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+  @@index([restaurantId])
   @@index([status])
   @@map("service_calls")
 }

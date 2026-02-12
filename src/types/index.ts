@@ -1,12 +1,21 @@
 export type UserRole = 'business' | 'customer';
 
+export interface Category {
+  id: string;
+  name: string;
+  restaurantId?: string;
+  imageUrl?: string;
+  displayOrder?: number;
+  isActive?: boolean;
+}
+
 export interface Product {
   id: string;
   name: string;
   description: string;
   price: number;
-  category: string;
-  image: string;
+  category: Category | string;
+  imageUrl: string;
   isAvailable: boolean;
 }
 

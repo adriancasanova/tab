@@ -13,10 +13,16 @@ const RESTAURANT_SLUG = import.meta.env.VITE_RESTAURANT_SLUG || 'demo-restaurant
 
 // Helper for Fetch requests
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    const token = localStorage.getItem('gs_token');
+
+    const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...options?.headers,
+    };
+
     const response = await fetch(`${API_URL}${endpoint}`, {
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers,
         ...options,
     });
 
@@ -59,6 +65,19 @@ export const api = {
         return request<Table>(`/tables/${tableId}/toggle`, { method: 'PATCH' });
     },
 
+    updateTable: async (tableId: string, number: string) => {
+        return request<Table>(`/tables/${tableId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ number }),
+        });
+    },
+
+    deleteTable: async (tableId: string) => {
+        return request<void>(`/tables/${tableId}`, {
+            method: 'DELETE',
+        });
+    },
+
     // Sessions
     startSession: async (tableId: string, consumerName: string) => {
         return request<Session>(`/tables/${tableId}/sessions`, {
@@ -99,6 +118,13 @@ export const api = {
     // Service Calls
     createServiceCall: async (sessionId: string, type: 'WAITER' | 'BILL') => {
         return request<ServiceCall>(`/sessions/${sessionId}/service-calls`, {
+            method: 'POST',
+            body: JSON.stringify({ type }),
+        });
+    },
+
+    createServiceCallWithoutSession: async (restaurantId: string, type: 'WAITER' = 'WAITER') => {
+        return request<ServiceCall>(`/restaurants/${restaurantId}/service-calls`, {
             method: 'POST',
             body: JSON.stringify({ type }),
         });

@@ -8,7 +8,7 @@ export class OrderController {
             const { id } = req.params;
 
             const order = await prisma.order.findUnique({
-                where: { id },
+                where: { id: id as string },
                 include: {
                     items: {
                         include: {
@@ -41,7 +41,7 @@ export class OrderController {
             }
 
             const order = await prisma.order.update({
-                where: { id },
+                where: { id: id as string },
                 data: { status },
             });
 

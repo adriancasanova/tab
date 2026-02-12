@@ -8,7 +8,7 @@ export class ServiceCallController {
             const { id } = req.params;
 
             const serviceCall = await prisma.serviceCall.update({
-                where: { id },
+                where: { id: id as string },
                 data: {
                     status: 'RESOLVED',
                     resolvedAt: new Date(),

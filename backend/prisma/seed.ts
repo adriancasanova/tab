@@ -1,18 +1,60 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
     console.log('🌱 Seeding database...');
 
-    // Create a demo restaurant
+    // Create test users
+    const passwordHash = await bcrypt.hash('demo123', 12);
+    const trialPasswordHash = await bcrypt.hash('trial123', 12);
+
+    // Active user (full access)
+    const activeUser = await prisma.user.upsert({
+        where: { email: 'demo@gastrosplit.com' },
+        update: {},
+        create: {
+            email: 'demo@gastrosplit.com',
+            passwordHash: passwordHash,
+            status: 'ACTIVE',
+            role: 'OWNER',
+            firstName: 'Demo',
+            lastName: 'User',
+            businessName: 'Demo Business',
+        },
+    });
+    console.log(`✅ Active user created: ${activeUser.email}`);
+
+    // Trial user (limited time)
+    const trialEndsAt = new Date();
+    trialEndsAt.setDate(trialEndsAt.getDate() + 15); // 15 days trial
+
+    const trialUser = await prisma.user.upsert({
+        where: { email: 'trial@gastrosplit.com' },
+        update: {},
+        create: {
+            email: 'trial@gastrosplit.com',
+            passwordHash: trialPasswordHash,
+            status: 'TRIAL',
+            role: 'OWNER',
+            firstName: 'Trial',
+            lastName: 'User',
+            businessName: 'Trial Business',
+            trialEndsAt: trialEndsAt,
+        },
+    });
+    console.log(`✅ Trial user created: ${trialUser.email}`);
+
+    // Create a demo restaurant (owned by active user)
     const restaurant = await prisma.restaurant.upsert({
         where: { slug: 'demo-restaurant' },
-        update: {},
+        update: { ownerId: activeUser.id },
         create: {
             name: 'GastroSplit Demo',
             slug: 'demo-restaurant',
             timezone: 'America/Argentina/Buenos_Aires',
+            ownerId: activeUser.id,
         },
     });
 

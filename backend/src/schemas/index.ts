@@ -24,7 +24,7 @@ export const createCategorySchema = z.object({
 // Product schemas
 export const createProductSchema = z.object({
     body: z.object({
-        categoryId: z.string().uuid(),
+        categoryId: z.string(), // Relaxed to support seeded IDs like 'cat-bebidas'
         name: z.string().min(1, 'Name is required'),
         description: z.string().optional(),
         price: z.number().positive('Price must be positive'),
@@ -38,7 +38,7 @@ export const createProductSchema = z.object({
 
 export const updateProductSchema = z.object({
     body: z.object({
-        categoryId: z.string().uuid().optional(),
+        categoryId: z.string().optional(), // Relaxed to support seeded IDs like 'cat-bebidas'
         name: z.string().min(1).optional(),
         description: z.string().optional(),
         price: z.number().positive().optional(),
@@ -46,7 +46,7 @@ export const updateProductSchema = z.object({
         isAvailable: z.boolean().optional(),
     }),
     params: z.object({
-        id: z.string().uuid(),
+        id: z.string(), // Relaxed to support seeded IDs like 'prod-1'
     }),
 });
 

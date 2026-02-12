@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { Session, Consumer, Product, Table, Notification } from '../types';
+import type { Session, Consumer, Product, Category, Table, Notification } from '../types';
 import { api } from '../services/api';
 
 const STORAGE_KEYS = {
@@ -15,10 +15,12 @@ interface AppContextType {
     session: Session | null;
     currentUser: Consumer | null;
     products: Product[];
+    categories: Category[];
     tables: Table[];
     allSessions: Session[];
     notifications: Notification[];
     restaurantId: string | null;
+    restaurantSlug: string;
     isLoading: boolean;
     error: string | null;
 
@@ -58,10 +60,19 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+interface AppProviderProps {
+    children: React.ReactNode;
+    restaurantSlug?: string;
+}
+
+export const AppProvider: React.FC<AppProviderProps> = ({ children, restaurantSlug }) => {
+    // Use prop if provided, otherwise fallback to env var
+    const activeSlug = restaurantSlug || RESTAURANT_SLUG;
+
     const [session, setSession] = useState<Session | null>(null);
     const [currentUser, setCurrentUser] = useState<Consumer | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [tables, setTables] = useState<Table[]>([]);
     const [allSessions, setAllSessions] = useState<Session[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -76,13 +87,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setIsLoading(true);
             try {
                 // 1. Get Restaurant & Tables
-                const restaurant = await api.getRestaurant(RESTAURANT_SLUG);
+                const restaurant = await api.getRestaurant(activeSlug);
                 setRestaurantId(restaurant.id);
                 setTables(restaurant.tables || []);
 
                 // 2. Get Menu
                 const menu = await api.getMenu(restaurant.id);
                 setProducts(menu.products || []);
+                setCategories(menu.categories || []);
 
                 // 3. Restore Session
                 const savedSessionId = localStorage.getItem(STORAGE_KEYS.SESSION_ID);
@@ -129,8 +141,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const newSession = await api.startSession(tableId, userData.name);
             setSession(newSession);
 
-            // The creator is the first consumer
-            const me = newSession.consumers[0]; // Assuming backend adds it as first
+            // Find the current user - they are the last consumer added (most recent)
+            // When joining an existing session, we're not necessarily the first
+            const me = newSession.consumers[newSession.consumers.length - 1];
             setCurrentUser(me);
 
             localStorage.setItem(STORAGE_KEYS.SESSION_ID, newSession.id);
@@ -220,7 +233,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const callWaiterWithoutSession = async () => {
-        console.log('Call waiter from entrance');
+        if (!restaurantId) return;
+        try {
+            await api.createServiceCallWithoutSession(restaurantId, 'WAITER');
+        } catch (err: any) {
+            console.error('Failed to call waiter from entrance:', err);
+            setError(err.message);
+        }
     };
 
     // Admin
@@ -229,7 +248,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsLoading(true);
         try {
             // Refresh tables (via restaurant endpoint)
-            const restaurant = await api.getRestaurant(RESTAURANT_SLUG);
+            const restaurant = await api.getRestaurant(activeSlug);
             setTables(restaurant.tables || []);
 
             const activeSessions = await api.getActiveSessions(restaurantId);
@@ -243,6 +262,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             // Also refresh menu
             const menu = await api.getMenu(restaurantId);
             setProducts(menu.products || []);
+            setCategories(menu.categories || []);
         } catch (e) {
             console.error(e);
         } finally {
@@ -251,11 +271,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     // Stub Admin methods
-    const addProduct = async (product: any) => { if (restaurantId) await api.createProduct(restaurantId, product); await refreshData(); };
+    const addProduct = async (product: any) => {
+        if (!restaurantId) {
+            throw new Error('No se encontró el ID del restaurante');
+        }
+        try {
+            await api.createProduct(restaurantId, product);
+            await refreshData();
+        } catch (error) {
+            console.error('Error creating product:', error);
+            throw error;
+        }
+    };
     const updateProduct = async (product: Product) => { await api.updateProduct(product.id, product); await refreshData(); };
     const deleteProduct = async (id: string) => { await api.deleteProduct(id); await refreshData(); };
     const addTable = async (num: string) => { if (restaurantId) await api.createTable(restaurantId, num); await refreshData(); };
-    const updateTable = async (_id: string, _num: string) => { /* Api missing update table number endpoint? */ };
+    const updateTable = async (id: string, num: string) => { await api.updateTable(id, num); await refreshData(); };
     const toggleTableEnabled = async (id: string) => { await api.toggleTable(id); await refreshData(); };
 
     const resolveServiceCall = async (_sessionId: string, callId: string) => {
@@ -272,10 +303,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             session,
             currentUser,
             products,
+            categories,
             tables,
             allSessions,
             notifications,
             restaurantId,
+            restaurantSlug: activeSlug,
             isLoading,
             error,
             startSessionAtTable,
@@ -312,7 +345,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             updateTable,
             toggleTableEnabled,
             getEnabledTables: () => tables.filter(t => t.isEnabled), // Helper
-            deleteTable: async () => { }, // Not implemented
+            deleteTable: async (tableId: string) => {
+                await api.deleteTable(tableId);
+                await refreshData();
+            },
             markNotificationRead,
             resolveServiceCall,
         }}>

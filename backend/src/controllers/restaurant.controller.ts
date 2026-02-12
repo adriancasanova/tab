@@ -28,7 +28,8 @@ export class RestaurantController {
             const { slug } = req.params;
 
             const restaurant = await prisma.restaurant.findUnique({
-                where: { slug },
+                // correcion propia String(slug)
+                where: { slug: String(slug) },
                 include: {
                     categories: { where: { isActive: true }, orderBy: { displayOrder: 'asc' } },
                     tables: true,
@@ -50,7 +51,8 @@ export class RestaurantController {
             const { id } = req.params;
 
             const categories = await prisma.category.findMany({
-                where: { restaurantId: id, isActive: true },
+              //correcion propia String(id)
+                where: { restaurantId: String(id), isActive: true },
                 include: {
                     products: {
                         where: { isAvailable: true },
@@ -62,7 +64,8 @@ export class RestaurantController {
 
             // Also get all products for admin view
             const allProducts = await prisma.product.findMany({
-                where: { restaurantId: id },
+                //correcion propia String(id)
+                where: { restaurantId: String(id) },
                 include: { category: true },
                 orderBy: { name: 'asc' },
             });
@@ -82,10 +85,11 @@ export class RestaurantController {
     async getActiveSessions(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
+            const restaurantId = String(id);
 
             const sessions = await prisma.session.findMany({
                 where: {
-                    table: { restaurantId: id },
+                    table: { restaurantId: restaurantId },
                     status: { in: ['ACTIVE', 'PAYMENT_PENDING'] },
                 },
                 include: {
@@ -108,9 +112,10 @@ export class RestaurantController {
 
             // Calculate totals for each session
             const sessionsWithTotals = sessions.map(session => {
-                const total = session.order?.items.reduce((sum, item) => {
+                const orderItems = session.order?.items || [];
+                const total = orderItems.reduce((sum: number, item: any) => {
                     return sum + Number(item.unitPrice) * item.quantity;
-                }, 0) || 0;
+                }, 0);
 
                 return {
                     ...session,
@@ -128,46 +133,49 @@ export class RestaurantController {
     async getNotifications(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
+            const restaurantId = String(id);
 
-            // Get pending service calls as notifications
+            // Get pending service calls as notifications (both session and entrance calls)
+            // Using explicit type casting for Prisma 'OR' query to avoid TS issues with generated client
             const serviceCalls = await prisma.serviceCall.findMany({
                 where: {
                     status: 'PENDING',
-                    session: { table: { restaurantId: id } },
-                },
+                    OR: [
+                        { restaurantId: restaurantId },
+                        { session: { table: { restaurantId: restaurantId } } }
+                    ]
+                } as any, // Cast to any to bypass strict type check if schema is slightly out of sync
                 include: {
                     session: { include: { table: true } },
                 },
                 orderBy: { createdAt: 'desc' },
             });
 
-            // Get recent orders (last hour)
-            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-            const recentOrders = await prisma.order.findMany({
-                where: {
-                    session: { table: { restaurantId: id } },
-                    createdAt: { gte: oneHourAgo },
-                },
-                include: {
-                    session: { include: { table: true } },
-                    items: { include: { product: true } },
-                },
-                orderBy: { createdAt: 'desc' },
-            });
+            const notifications = serviceCalls.map((call: any) => {
+                let message = '';
+                let tableId = '';
 
-            const notifications = [
-                ...serviceCalls.map(call => ({
+                // Safely access session and table
+                if (call.session && call.session.table) {
+                    tableId = call.session.table.number;
+                    message = call.type === 'WAITER'
+                        ? `Mesa ${tableId} solicita mozo`
+                        : `Mesa ${tableId} solicita la cuenta`;
+                } else {
+                    tableId = 'Entrada';
+                    message = 'Cliente en Entrada solicita mozo';
+                }
+
+                return {
                     id: call.id,
                     type: call.type.toLowerCase(),
-                    message: call.type === 'WAITER'
-                        ? `Mesa ${call.session.table.number} solicita mozo`
-                        : `Mesa ${call.session.table.number} solicita la cuenta`,
+                    message,
                     sessionId: call.sessionId,
-                    tableId: call.session.table.number,
-                    timestamp: call.createdAt.getTime(),
+                    tableId,
+                    timestamp: new Date(call.createdAt).getTime(),
                     read: false,
-                })),
-            ];
+                };
+            });
 
             res.json({ success: true, data: notifications });
         } catch (error) {
@@ -178,19 +186,26 @@ export class RestaurantController {
     // Create products under restaurant
     async createProduct(req: Request, res: Response, next: NextFunction) {
         try {
-            const { id: restaurantId } = req.params;
+            const { id } = req.params;
+            const restaurantId = String(id);
             const { categoryId, name, description, price, imageUrl, isAvailable } = req.body;
 
+            const productData: any = {
+                restaurantId,
+                name,
+                description: description || '',
+                price,
+                imageUrl,
+                isAvailable: isAvailable ?? true,
+            };
+
+            // Only include categoryId if it's provided and not empty
+            if (categoryId && categoryId.trim() !== '') {
+                productData.categoryId = String(categoryId);
+            }
+
             const product = await prisma.product.create({
-                data: {
-                    restaurantId,
-                    categoryId,
-                    name,
-                    description: description || '',
-                    price,
-                    imageUrl,
-                    isAvailable: isAvailable ?? true,
-                },
+                data: productData,
                 include: { category: true },
             });
 
@@ -198,7 +213,7 @@ export class RestaurantController {
                 productId: product.id,
                 name: product.name,
                 price: Number(product.price),
-                category: product.category.name,
+                category: product.category?.name || 'Sin categoría',
             });
 
             res.status(201).json({ success: true, data: product });
@@ -210,7 +225,8 @@ export class RestaurantController {
     // Create tables under restaurant
     async createTable(req: Request, res: Response, next: NextFunction) {
         try {
-            const { id: restaurantId } = req.params;
+            const { id } = req.params;
+            const restaurantId = String(id);
             const { number } = req.body;
 
             const table = await prisma.table.create({
@@ -231,7 +247,8 @@ export class RestaurantController {
     // Create multiple tables
     async createMultipleTables(req: Request, res: Response, next: NextFunction) {
         try {
-            const { id: restaurantId } = req.params;
+            const { id } = req.params;
+            const restaurantId = String(id);
             const { from, to } = req.body;
 
             const tables = [];
@@ -251,7 +268,8 @@ export class RestaurantController {
     // Create category
     async createCategory(req: Request, res: Response, next: NextFunction) {
         try {
-            const { id: restaurantId } = req.params;
+            const { id } = req.params;
+            const restaurantId = String(id);
             const { name, imageUrl, displayOrder } = req.body;
 
             const category = await prisma.category.create({
@@ -264,6 +282,30 @@ export class RestaurantController {
             });
 
             res.status(201).json({ success: true, data: category });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async createServiceCall(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const restaurantId = String(id);
+            const { type } = req.body;
+
+            const serviceCall = await prisma.serviceCall.create({
+                data: {
+                    restaurantId, 
+                    type: type || 'WAITER',
+                } as any,
+            });
+
+            await EventService.publish(restaurantId, 'WAITER_CALLED', {
+                location: 'Entrance',
+                callId: serviceCall.id
+            });
+
+            res.status(201).json({ success: true, data: serviceCall });
         } catch (error) {
             next(error);
         }

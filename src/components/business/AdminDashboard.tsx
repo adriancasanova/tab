@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { AdminMetrics } from './AdminMetrics';
+import type { Table } from '../../types';
 
 export const AdminDashboard: React.FC = () => {
+    const navigate = useNavigate();
+    const { user, logout } = useAuth();
     const {
         products,
+        categories,
         tables,
         allSessions,
         notifications,
@@ -28,8 +35,8 @@ export const AdminDashboard: React.FC = () => {
         name: '',
         description: '',
         price: '',
-        category: '',
-        image: '',
+        categoryId: '',
+        imageUrl: '',
         isAvailable: true,
     });
 
@@ -39,40 +46,86 @@ export const AdminDashboard: React.FC = () => {
     const [multiTableTo, setMultiTableTo] = useState('');
     const [editingTableId, setEditingTableId] = useState<string | null>(null);
     const [editingTableNumber, setEditingTableNumber] = useState('');
+    const [qrModalTable, setQrModalTable] = useState<Table | null>(null);
+
+    // Restaurant slug for QR code URL
+    const restaurantSlug = 'demo-restaurant'; // TODO: Get from context
 
     const unreadCount = notifications.filter(n => !n.read).length;
     const activeSessions = allSessions.filter(s => s.status === 'active' || s.status === 'payment_pending');
 
-    // Product handlers
-    const handleProductSubmit = () => {
-        if (!productForm.name || !productForm.price) return;
+    // Sound notification
+    React.useEffect(() => {
+        const unreadNotifications = notifications.filter(n => !n.read);
+        if (unreadNotifications.length > 0) {
+            // Simple beep sound
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
 
-        if (editingProduct) {
-            updateProduct({
-                ...editingProduct,
-                name: productForm.name,
-                description: productForm.description,
-                price: Number(productForm.price),
-                category: productForm.category,
-                image: productForm.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80',
-                isAvailable: productForm.isAvailable,
-            });
-        } else {
-            addProduct({
-                name: productForm.name,
-                description: productForm.description,
-                price: Number(productForm.price),
-                category: productForm.category,
-                image: productForm.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80',
-                isAvailable: productForm.isAvailable,
-            });
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch for attention
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.start();
+
+            // Beep-beep pattern
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime + 0.2);
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime + 0.3);
+
+            setTimeout(() => {
+                oscillator.stop();
+                audioCtx.close();
+            }, 400);
+        }
+    }, [notifications.length]); // Trigget when notification count changes
+
+    // Product handlers
+    const handleProductSubmit = async () => {
+        if (!productForm.name || !productForm.price) {
+            alert('Por favor, completá el nombre y el precio del producto.');
+            return;
         }
 
-        resetProductForm();
+        try {
+            if (editingProduct) {
+                const updatePayload: any = {
+                    ...editingProduct,
+                    name: productForm.name,
+                    description: productForm.description,
+                    price: Number(productForm.price),
+                    imageUrl: productForm.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80',
+                    isAvailable: productForm.isAvailable,
+                };
+
+                if (productForm.categoryId) {
+                    updatePayload.categoryId = productForm.categoryId;
+                }
+
+                await updateProduct(updatePayload);
+            } else {
+                await addProduct({
+                    name: productForm.name,
+                    description: productForm.description,
+                    price: Number(productForm.price),
+                    categoryId: productForm.categoryId,
+                    imageUrl: productForm.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80',
+                    isAvailable: productForm.isAvailable,
+                });
+            }
+
+            resetProductForm();
+        } catch (error: any) {
+            console.error('Error al guardar producto:', error);
+            alert(`Error: ${error.message || 'No se pudo guardar el producto'}`);
+        }
     };
 
     const resetProductForm = () => {
-        setProductForm({ name: '', description: '', price: '', category: '', image: '', isAvailable: true });
+        setProductForm({ name: '', description: '', price: '', categoryId: '', imageUrl: '', isAvailable: true });
         setEditingProduct(null);
         setShowProductForm(false);
     };
@@ -83,8 +136,8 @@ export const AdminDashboard: React.FC = () => {
             name: product.name,
             description: product.description,
             price: String(product.price),
-            category: product.category,
-            image: product.image,
+            categoryId: typeof product.category === 'object' ? product.category.id : '',
+            imageUrl: product.imageUrl,
             isAvailable: product.isAvailable,
         });
         setShowProductForm(true);
@@ -118,9 +171,31 @@ export const AdminDashboard: React.FC = () => {
 
     return (
         <div className="page-container">
-            <header className="page-header">
+            <header className="page-header" style={{ position: 'relative' }}>
                 <h1 className="page-title">PANEL ADMIN</h1>
-                <p className="page-subtitle">GastroSplit - Gestión del Negocio</p>
+                <p className="page-subtitle">
+                    {user ? `${user.businessName || user.email}` : 'GastroSplit - Gestión del Negocio'}
+                </p>
+                <button
+                    onClick={() => {
+                        logout();
+                        navigate('/login');
+                    }}
+                    style={{
+                        position: 'absolute',
+                        top: 'var(--spacing-md)',
+                        left: 'var(--spacing-md)',
+                        padding: '0.5rem 1rem',
+                        background: 'transparent',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                    }}
+                >
+                    🚪 Cerrar Sesión
+                </button>
             </header>
 
             {/* Tabs */}
@@ -327,6 +402,17 @@ export const AdminDashboard: React.FC = () => {
                                                 }}>
                                                     ✏️
                                                 </button>
+                                                <button onClick={() => setQrModalTable(table)} style={{
+                                                    padding: '0.25rem 0.5rem',
+                                                    background: 'transparent',
+                                                    border: '1px solid var(--color-primary)',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    color: 'var(--color-primary)',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.75rem',
+                                                }}>
+                                                    📱
+                                                </button>
                                                 <button onClick={() => toggleTableEnabled(table.id)} style={{
                                                     padding: '0.25rem 0.5rem',
                                                     background: 'transparent',
@@ -376,10 +462,12 @@ export const AdminDashboard: React.FC = () => {
                             borderRadius: 'var(--radius-md)',
                             marginBottom: 'var(--spacing-sm)',
                         }}>
-                            <img src={product.image} alt={product.name} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
+                            <img src={product.imageUrl} alt={product.name} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
                             <div style={{ flex: 1 }}>
                                 <p style={{ fontWeight: 600 }}>{product.name}</p>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{product.category}</p>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                    {typeof product.category === 'object' ? product.category.name : product.category}
+                                </p>
                             </div>
                             <span style={{ fontWeight: 600 }}>${product.price.toLocaleString()}</span>
                             <button onClick={() => startEditProduct(product)} style={{ padding: '0.5rem', background: 'transparent', border: 'none', color: 'var(--color-primary)', cursor: 'pointer' }}>✏️</button>
@@ -417,8 +505,17 @@ export const AdminDashboard: React.FC = () => {
                             <input type="text" placeholder="Nombre del producto" value={productForm.name} onChange={(e) => setProductForm(prev => ({ ...prev, name: e.target.value }))} className="form-input" />
                             <input type="text" placeholder="Descripción" value={productForm.description} onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))} className="form-input" />
                             <input type="number" placeholder="Precio" value={productForm.price} onChange={(e) => setProductForm(prev => ({ ...prev, price: e.target.value }))} className="form-input" />
-                            <input type="text" placeholder="Categoría" value={productForm.category} onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value }))} className="form-input" />
-                            <input type="text" placeholder="URL de imagen (opcional)" value={productForm.image} onChange={(e) => setProductForm(prev => ({ ...prev, image: e.target.value }))} className="form-input" />
+                            <select
+                                value={productForm.categoryId}
+                                onChange={(e) => setProductForm(prev => ({ ...prev, categoryId: e.target.value }))}
+                                className="form-input"
+                            >
+                                <option value="">Seleccionar Categoría</option>
+                                {categories.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                ))}
+                            </select>
+                            <input type="text" placeholder="URL de imagen (opcional)" value={productForm.imageUrl} onChange={(e) => setProductForm(prev => ({ ...prev, imageUrl: e.target.value }))} className="form-input" />
                             <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
                                 <input type="checkbox" checked={productForm.isAvailable} onChange={(e) => setProductForm(prev => ({ ...prev, isAvailable: e.target.checked }))} />
                                 Disponible
@@ -443,6 +540,121 @@ export const AdminDashboard: React.FC = () => {
                     Vista Cliente ↗
                 </a>
             </div>
+
+            {/* QR Code Modal */}
+            {qrModalTable && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'rgba(0,0,0,0.8)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 1000,
+                    }}
+                    onClick={() => setQrModalTable(null)}
+                >
+                    <div
+                        style={{
+                            background: 'var(--color-surface)',
+                            padding: 'var(--spacing-xl)',
+                            borderRadius: 'var(--radius-lg)',
+                            maxWidth: 400,
+                            width: '90%',
+                            textAlign: 'center',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h2 style={{ marginBottom: 'var(--spacing-md)' }}>
+                            Mesa #{qrModalTable.number}
+                        </h2>
+                        <p style={{ color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-lg)', fontSize: '0.875rem' }}>
+                            Escaneá o compartí este QR con tus clientes
+                        </p>
+
+                        <div style={{
+                            background: '#fff',
+                            padding: 'var(--spacing-lg)',
+                            borderRadius: 'var(--radius-md)',
+                            display: 'inline-block',
+                            marginBottom: 'var(--spacing-lg)'
+                        }}>
+                            <QRCodeSVG
+                                value={`${window.location.origin}/${restaurantSlug}/table/${qrModalTable.number}`}
+                                size={200}
+                                level="H"
+                                includeMargin={true}
+                            />
+                        </div>
+
+                        <p style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--color-text-muted)',
+                            marginBottom: 'var(--spacing-lg)',
+                            wordBreak: 'break-all'
+                        }}>
+                            {window.location.origin}/{restaurantSlug}/table/{qrModalTable.number}
+                        </p>
+
+                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'center' }}>
+                            <button
+                                onClick={() => {
+                                    const url = `${window.location.origin}/${restaurantSlug}/table/${qrModalTable.number}`;
+                                    navigator.clipboard.writeText(url);
+                                    alert('URL copiada al portapapeles!');
+                                }}
+                                style={{
+                                    padding: '0.75rem 1.5rem',
+                                    background: 'transparent',
+                                    border: '1px solid var(--color-border)',
+                                    borderRadius: 'var(--radius-md)',
+                                    color: 'var(--color-text)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                📋 Copiar URL
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const url = `${window.location.origin}/${restaurantSlug}/table/${qrModalTable.number}`;
+                                    if (navigator.share) {
+                                        navigator.share({
+                                            title: `Mesa ${qrModalTable.number} - GastroSplit`,
+                                            text: `Escaneá este link para unirte a la mesa ${qrModalTable.number}`,
+                                            url: url,
+                                        });
+                                    } else {
+                                        navigator.clipboard.writeText(url);
+                                        alert('URL copiada al portapapeles!');
+                                    }
+                                }}
+                                className="form-button"
+                                style={{ marginTop: 0 }}
+                            >
+                                📤 Compartir
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => setQrModalTable(null)}
+                            style={{
+                                marginTop: 'var(--spacing-lg)',
+                                padding: '0.5rem 1rem',
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--color-text-muted)',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -11,10 +11,12 @@ export const Menu: React.FC = () => {
 
     // Group products by category
     const categories = products.reduce((acc, product) => {
-        if (!acc[product.category]) {
-            acc[product.category] = [];
+        const categoryName = typeof product.category === 'object' ? product.category.name : product.category;
+
+        if (!acc[categoryName]) {
+            acc[categoryName] = [];
         }
-        acc[product.category].push(product);
+        acc[categoryName].push(product);
         return acc;
     }, {} as Record<string, Product[]>);
 
@@ -169,7 +171,7 @@ export const Menu: React.FC = () => {
                         onClick={(e) => e.stopPropagation()}
                     >
                         <img
-                            src={selectedProduct.image}
+                            src={selectedProduct.imageUrl}
                             alt={selectedProduct.name}
                             style={{ width: '100%', height: 180, objectFit: 'cover' }}
                         />

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import authRoutes from './auth.routes';
 import restaurantRoutes from './restaurant.routes';
 import productRoutes from './product.routes';
 import tableRoutes from './table.routes';
@@ -8,6 +9,7 @@ import serviceCallRoutes from './service-call.routes';
 
 const router = Router();
 
+router.use('/auth', authRoutes);
 router.use('/restaurants', restaurantRoutes);
 router.use('/products', productRoutes);
 router.use('/tables', tableRoutes);

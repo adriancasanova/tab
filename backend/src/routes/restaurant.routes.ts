@@ -1,17 +1,18 @@
 import { Router } from 'express';
 import { RestaurantController } from '../controllers/restaurant.controller';
+import { authenticateToken, requireActiveSubscription } from '../middleware/auth.middleware';
 
 const router = Router();
 const controller = new RestaurantController();
 
-// GET /api/v1/restaurants/:slug - Get restaurant by slug
+// PUBLIC routes (for customers)
 router.get('/:slug', controller.getBySlug);
-
-// POST /api/v1/restaurants - Create restaurant
-router.post('/', controller.create);
-
-// GET /api/v1/restaurants/:id/menu - Get full menu
 router.get('/:id/menu', controller.getMenu);
+router.post('/:id/service-calls', controller.createServiceCall);
+
+// PROTECTED Admin routes
+router.use(authenticateToken);
+router.use(requireActiveSubscription);
 
 // GET /api/v1/restaurants/:id/active-sessions - Get active sessions (admin)
 router.get('/:id/active-sessions', controller.getActiveSessions);
@@ -30,5 +31,8 @@ router.post('/:id/tables/batch', controller.createMultipleTables);
 
 // POST /api/v1/restaurants/:id/categories - Create category
 router.post('/:id/categories', controller.createCategory);
+
+// POST /api/v1/restaurants - Create restaurant (though usually done via auth/register)
+router.post('/', controller.create);
 
 export default router;
