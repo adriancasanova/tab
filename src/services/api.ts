@@ -90,6 +90,19 @@ export const api = {
         return request<Session>(`/sessions/${sessionId}`);
     },
 
+    getCurrentSession: async (token: string) => {
+        return request<Session>(`/sessions/current`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+    },
+
+    joinSession: async (tableId: string, consumerName: string) => {
+        return request<{ token: string; session: Session; consumer: Consumer }>(`/sessions/join`, {
+            method: 'POST',
+            body: JSON.stringify({ tableId, consumerName }),
+        });
+    },
+
     addConsumer: async (sessionId: string, name: string) => {
         return request<Consumer>(`/sessions/${sessionId}/consumers`, {
             method: 'POST',

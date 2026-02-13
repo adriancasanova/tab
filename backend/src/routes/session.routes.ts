@@ -4,6 +4,12 @@ import { SessionController } from '../controllers/session.controller';
 const router = Router();
 const controller = new SessionController();
 
+// POST /api/v1/sessions/join - Join/Create session
+router.post('/join', controller.join);
+
+// GET /api/v1/sessions/current - Get current session
+router.get('/current', controller.getCurrent);
+
 // GET /api/v1/sessions/:id
 router.get('/:id', controller.getById);
 

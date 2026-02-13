@@ -3,7 +3,166 @@ import prisma from '../config/database';
 import { AppError } from '../middleware/error-handler';
 import { EventService } from '../services/event.service';
 
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-this';
+
 export class SessionController {
+    // Join or create session
+    join = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { tableId, consumerName } = req.body;
+
+            if (!tableId || !consumerName) {
+                throw new AppError('Table ID and Name are required', 400);
+            }
+
+            // Check table exists
+            const table = await prisma.table.findUnique({
+                where: { id: tableId }
+            });
+
+            if (!table) {
+                throw new AppError('Table not found', 404);
+            }
+
+            // Find active session or create
+            let session = await prisma.session.findFirst({
+                where: {
+                    tableId,
+                    status: 'ACTIVE'
+                }
+            });
+
+            if (!session) {
+                session = await prisma.session.create({
+                    data: {
+                        tableId,
+                        status: 'ACTIVE'
+                    }
+                });
+            }
+
+            // Create consumer
+            const consumer = await prisma.consumer.create({
+                data: {
+                    sessionId: session.id,
+                    name: consumerName
+                }
+            });
+
+            // Generate token
+            const token = jwt.sign(
+                { 
+                    sessionId: session.id, 
+                    consumerId: consumer.id,
+                    tableId,
+                    role: 'customer' 
+                },
+                JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+
+            res.json({ success: true, data: { token, session, consumer } });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    // Get current session from token
+    getCurrent = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const authHeader = req.headers.authorization;
+            if (!authHeader) {
+                throw new AppError('No token provided', 401);
+            }
+
+            const token = authHeader.split(' ')[1];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let decoded: any;
+            try {
+                decoded = jwt.verify(token, JWT_SECRET);
+            } catch (err) {
+                throw new AppError('Invalid token', 401);
+            }
+
+            const session = await prisma.session.findUnique({
+                where: { id: decoded.sessionId },
+                include: {
+                    table: true,
+                    consumers: { orderBy: { joinedAt: 'asc' } },
+                    order: {
+                        include: {
+                            items: {
+                                include: {
+                                    product: true,
+                                    consumers: { include: { consumer: true } },
+                                },
+                                orderBy: { createdAt: 'desc' },
+                            },
+                        },
+                    },
+                    serviceCalls: { orderBy: { createdAt: 'desc' } },
+                },
+            });
+
+            if (!session || session.status !== 'ACTIVE') {
+                 throw new AppError('Session not active', 404);
+            }
+
+            // Transform to match frontend format (re-using getById logic essentially)
+             const response = {
+                id: session.id,
+                tableId: session.table.number,
+                businessId: session.table.restaurantId,
+                status: session.status.toLowerCase(),
+                startTime: session.startedAt.getTime(),
+                endTime: session.endedAt?.getTime(),
+                consumers: session.consumers.map(c => ({
+                    id: c.id,
+                    sessionId: c.sessionId,
+                    name: c.name,
+                    isGuest: true,
+                    visitCount: 1,
+                })),
+                orders: session.order ? [{
+                    id: session.order.id,
+                    sessionId: session.order.sessionId,
+                    items: session.order.items.map(item => ({
+                        id: item.id,
+                        productId: item.productId,
+                        product: {
+                            id: item.product.id,
+                            name: item.product.name,
+                            description: item.product.description,
+                            price: Number(item.product.price),
+                            category: '', // Would need category relation
+                            image: item.product.imageUrl || '',
+                            isAvailable: item.product.isAvailable,
+                        },
+                        quantity: item.quantity,
+                        consumerIds: item.consumers.map(c => c.consumerId),
+                        status: item.status.toLowerCase(),
+                        timestamp: item.createdAt.getTime(),
+                    })),
+                    status: session.order.status.toLowerCase(),
+                    createdAt: session.order.createdAt.getTime(),
+                }] : [],
+                serviceCalls: session.serviceCalls.map(call => ({
+                    id: call.id,
+                    sessionId: call.sessionId,
+                    type: call.type.toLowerCase(),
+                    status: call.status.toLowerCase(),
+                    timestamp: call.createdAt.getTime(),
+                })),
+            };
+
+            res.json({ success: true, data: response });
+        } catch (error) {
+            next(error);
+        }
+    };
+
     async getById(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
