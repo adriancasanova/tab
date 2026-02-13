@@ -168,7 +168,7 @@ export class SessionController {
             const { id } = req.params;
 
             const session = await prisma.session.findUnique({
-                where: { id },
+                where: { id: String(id) },
                 include: {
                     table: true,
                     consumers: { orderBy: { joinedAt: 'asc' } },
@@ -250,7 +250,7 @@ export class SessionController {
             const { name } = req.body;
 
             const session = await prisma.session.findUnique({
-                where: { id: sessionId },
+                where: { id : String(sessionId) },
                 include: { table: true },
             });
 
@@ -263,7 +263,7 @@ export class SessionController {
             }
 
             const consumer = await prisma.consumer.create({
-                data: { sessionId, name },
+                data: { sessionId: String(sessionId), name },
             });
 
             await EventService.publish(session.table.restaurantId, 'CONSUMER_JOINED', {
@@ -289,7 +289,7 @@ export class SessionController {
             }
 
             const session = await prisma.session.update({
-                where: { id },
+                where: { id: String(id) },
                 data: {
                     status,
                     ...(status === 'CLOSED' && { endedAt: new Date() }),
@@ -316,7 +316,7 @@ export class SessionController {
             const { sessionId } = req.params;
 
             const session = await prisma.session.findUnique({
-                where: { id: sessionId },
+                where: { id: String(sessionId) },
                 include: {
                     consumers: true,
                     order: {
@@ -402,7 +402,7 @@ export class SessionController {
             const { items } = req.body;
 
             const session = await prisma.session.findUnique({
-                where: { id: sessionId },
+                where: { id: String(sessionId) },
                 include: { table: true, order: true },
             });
 
@@ -422,7 +422,7 @@ export class SessionController {
             let order = session.order;
             if (!order) {
                 order = await prisma.order.create({
-                    data: { sessionId },
+                    data: { sessionId: String(sessionId) },
                 });
             }
 
@@ -491,7 +491,7 @@ export class SessionController {
             const { type } = req.body;
 
             const session = await prisma.session.findUnique({
-                where: { id: sessionId },
+                where: { id: String(sessionId) },
                 include: { table: true },
             });
 
@@ -500,13 +500,13 @@ export class SessionController {
             }
 
             const serviceCall = await prisma.serviceCall.create({
-                data: { sessionId, type },
+                data: { sessionId: String(sessionId), type },
             });
 
             // If requesting bill, update session status
             if (type === 'BILL') {
                 await prisma.session.update({
-                    where: { id: sessionId },
+                    where: { id: String(sessionId) },
                     data: { status: 'PAYMENT_PENDING' },
                 });
 
