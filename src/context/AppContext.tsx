@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { Session, Consumer, Product, Category, Table, Notification } from '../types';
 import { api } from '../services/api';
 
@@ -79,7 +79,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, restaurantSl
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [restaurantId, setRestaurantId] = useState<string | null>(null);
 
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     // Initial Load
@@ -126,7 +126,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, restaurantSl
             }
         };
         init();
-    }, []);
+    }, [activeSlug]);
 
     // Helper to refresh session state
     const refreshSession = async () => {
@@ -261,12 +261,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, restaurantSl
         }
     };
 
-    // Admin
+    // Admin - full refresh (tables, sessions, notifications, menu)
     const refreshData = async () => {
         if (!restaurantId) return;
         setIsLoading(true);
         try {
-            // Refresh tables (via restaurant endpoint)
             const restaurant = await api.getRestaurant(activeSlug);
             setTables(restaurant.tables || []);
 
@@ -274,11 +273,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, restaurantSl
             setAllSessions(activeSessions);
 
             const notifs = await api.getNotifications(restaurantId);
-            // Map backend notifications to frontend shape if needed
-            // For now assuming compatible or ignoring extra fields
             setNotifications(notifs);
 
-            // Also refresh menu
             const menu = await api.getMenu(restaurantId);
             setProducts(menu.products || []);
             setCategories(menu.categories || []);
@@ -288,6 +284,33 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, restaurantSl
             setIsLoading(false);
         }
     };
+
+    // Lightweight poll - only sessions and notifications (no loading spinner)
+    const adminPoll = useCallback(async () => {
+        if (!restaurantId) return;
+        try {
+            const [activeSessions, notifs] = await Promise.all([
+                api.getActiveSessions(restaurantId),
+                api.getNotifications(restaurantId),
+            ]);
+            setAllSessions(activeSessions);
+            setNotifications(notifs);
+        } catch (e) {
+            // Silent fail on poll - don't disrupt the UI
+            console.warn('Admin poll failed:', e);
+        }
+    }, [restaurantId]);
+
+    // Auto-poll every 10 seconds for admin data
+    useEffect(() => {
+        if (!restaurantId) return;
+
+        // Initial fetch
+        adminPoll();
+
+        const intervalId = setInterval(adminPoll, 10000);
+        return () => clearInterval(intervalId);
+    }, [restaurantId, adminPoll]);
 
     // Stub Admin methods
     const addProduct = async (product: any) => {

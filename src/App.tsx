@@ -12,14 +12,9 @@ import './index.css';
 
 // Pantalla de inicio: Escanear QR o llamar al mozo
 const StartSession = () => {
-    const { session, currentUser } = useApp();
     const { callWaiterWithoutSession } = useApp();
     const [waiterCalled, setWaiterCalled] = React.useState(false);
     const [isLoading, setIsLoading] = React.useState(false);
-
-    if (session && currentUser) {
-        return <Navigate to="/users" replace />;
-    }
 
     const handleCallWaiter = () => {
         setIsLoading(true);
@@ -31,14 +26,19 @@ const StartSession = () => {
     };
 
     return (
+
         <div className="fullscreen-bg">
+            {/* <div className="logo-container">
+                <img src="../assets/logo.png" alt="" className="logo" />
+            </div> */}
+
             <img
                 src="https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=1920&q=80"
                 alt="Restaurant background"
                 className="fullscreen-bg-image"
             />
-            <div className="fullscreen-overlay" />
 
+            <div className="fullscreen-overlay" />
             <div className="centered-content">
                 <h1 className="form-title" style={{ marginBottom: 'var(--spacing-xl)' }}>BIENVENIDO</h1>
 
@@ -98,10 +98,24 @@ const StartSession = () => {
 
 // Protected route for customer area
 const CustomerRoute = () => {
-    const { session, currentUser } = useApp();
+    const { session, currentUser, isLoading } = useApp();
+
+    // Wait for loading to complete before redirecting
+    if (isLoading) {
+        return (
+            <div className="fullscreen-bg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="fullscreen-overlay" />
+                <div style={{ textAlign: 'center', color: 'var(--color-text)', zIndex: 10 }}>
+                    <div style={{ fontSize: '2rem', marginBottom: 'var(--spacing-md)' }}>⏳</div>
+                    <p>Cargando...</p>
+                </div>
+            </div>
+        );
+    }
+
     if (!session || !currentUser) return <Navigate to="/" replace />;
     return <CustomerApp />;
-}; 
+};
 
 // Protected route for admin area - requires auth
 const AdminRoute = () => {
@@ -152,31 +166,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <>{children}</>;
 };
 
-// Customer registration via QR code
-const TableRegistration = () => {
-    const { slug, tableNumber } = useParams<{ slug: string; tableNumber: string }>();
-
-    return (
-        <AppProvider restaurantSlug={slug}>
-            <CustomerRegistration tableNumber={tableNumber} />
-        </AppProvider>
-    );
-};
-
-// Customer view for specific restaurant and table
-/*const TableCustomerView = () => {
-    const { slug } = useParams<{ slug: string }>();
-
-    return (
-        <AppProvider restaurantSlug={slug}>
-            <CustomerRoute />
-        </AppProvider>
-    );
-}; */
-
-
-// Prueba para ver porque falla la redireccion ------------------------------
-// Nuevo componente layout que comparte AppProvider
+// Table layout that shares AppProvider context for registration and user views
 const TableLayout = () => {
     const { slug } = useParams<{ slug: string }>();
     return (
@@ -185,11 +175,12 @@ const TableLayout = () => {
         </AppProvider>
     );
 };
+
+// Customer registration via QR code - handled by TableLayout
 const CustomerRegistrationWithParams = () => {
     const { tableNumber } = useParams<{ tableNumber: string }>();
     return <CustomerRegistration tableNumber={String(tableNumber)} />;
 };
-// Fin de prueba --------------------------------------------
 
 function App() {
     return (
@@ -216,11 +207,14 @@ function App() {
 
                     {/* Multi-tenant routes */}
                     <Route path="/:slug/admin" element={<AdminRoute />} />
-                    <Route path="/:slug/table/:tableNumber" element={<TableRegistration />} />
-               {/* <Route path="/:slug/table/:tableNumber/users" element={<TableCustomerView />} /> */}     
+
+                    {/* Table routes with shared AppProvider context */}
+                    <Route path="/:slug/table/:tableNumber" element={<TableLayout />}>
+                        <Route index element={<CustomerRegistrationWithParams />} />
+                        <Route path="users" element={<CustomerRoute />} />
+                    </Route>
 
                     {/* Legacy routes (for backwards compatibility) */}
-
                     <Route path="/customer-registration-anonimous" element={
                         <AppProvider>
                             <CustomerRegistration />
@@ -234,15 +228,6 @@ function App() {
 
                     {/* Fallback */}
                     <Route path="*" element={<Navigate to="/" replace />} />
-
-
-                    {/* Prueba para ver porque falla la redireccion */}
-                    <Route path="/:slug/table/:tableNumber" element={<TableLayout />}>
-                        <Route index element={<CustomerRegistrationWithParams />} />
-                        <Route path="users" element={<CustomerRoute />} />
-                    </Route>
-
-                    {/* Fin de prueba */}
                 </Routes>
             </AuthProvider>
         </BrowserRouter>

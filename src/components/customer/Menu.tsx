@@ -209,7 +209,7 @@ export const Menu: React.FC = () => {
                                     </button>
                                 </div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--spacing-xs)' }}>
-                                    {session?.consumers.map((c) => (
+                                    {session?.consumers?.map((c) => (
                                         <button
                                             key={c.id}
                                             onClick={() => toggleConsumer(c.id)}

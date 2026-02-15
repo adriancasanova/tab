@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useApp } from '../../context/AppContext';
@@ -15,6 +15,7 @@ export const AdminDashboard: React.FC = () => {
         tables,
         allSessions,
         notifications,
+        restaurantSlug,
         addProduct,
         updateProduct,
         deleteProduct,
@@ -24,9 +25,16 @@ export const AdminDashboard: React.FC = () => {
         toggleTableEnabled,
         deleteTable,
         markNotificationRead,
+        resolveServiceCall,
+        refreshData,
     } = useApp();
 
-    const [activeTab, setActiveTab] = useState<'notifications' | 'tables' | 'products' | 'manage-tables' | 'metrics'>('metrics');
+    // Fetch admin data on mount
+    useEffect(() => {
+        refreshData();
+    }, []);
+
+    const [activeTab, setActiveTab] = useState<'notifications' | 'tables' | 'products' | 'manage-tables' | 'metrics'>('notifications');
 
     // Product form state
     const [showProductForm, setShowProductForm] = useState(false);
@@ -48,8 +56,7 @@ export const AdminDashboard: React.FC = () => {
     const [editingTableNumber, setEditingTableNumber] = useState('');
     const [qrModalTable, setQrModalTable] = useState<Table | null>(null);
 
-    // Restaurant slug for QR code URL
-    const restaurantSlug = 'demo-restaurant'; // TODO: Get from context
+    // Restaurant slug from context
 
     const unreadCount = notifications.filter(n => !n.read).length;
     const activeSessions = allSessions.filter(s => s.status === 'active' || s.status === 'payment_pending');
@@ -174,7 +181,7 @@ export const AdminDashboard: React.FC = () => {
             <header className="page-header" style={{ position: 'relative' }}>
                 <h1 className="page-title">PANEL ADMIN</h1>
                 <p className="page-subtitle">
-                    {user ? `${user.businessName || user.email}` : 'GastroSplit - Gestión del Negocio'}
+                    {user ? `${user.businessName || user.email}` : 'TAB - Gestión del Negocio'}
                 </p>
                 <button
                     onClick={() => {
@@ -195,6 +202,23 @@ export const AdminDashboard: React.FC = () => {
                     }}
                 >
                     🚪 Cerrar Sesión
+                </button>
+                <button
+                    onClick={() => refreshData()}
+                    style={{
+                        position: 'absolute',
+                        top: 'var(--spacing-md)',
+                        right: 'var(--spacing-md)',
+                        padding: '0.5rem 1rem',
+                        background: 'transparent',
+                        border: '1px solid var(--color-primary)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--color-primary)',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                    }}
+                >
+                    🔄 Actualizar
                 </button>
             </header>
 
@@ -229,23 +253,49 @@ export const AdminDashboard: React.FC = () => {
                         notifications.map(notification => (
                             <div
                                 key={notification.id}
-                                onClick={() => markNotificationRead(notification.id)}
                                 style={{
                                     padding: 'var(--spacing-md)',
-                                    background: notification.read ? 'var(--color-surface)' : 'var(--color-primary)',
-                                    color: notification.read ? 'var(--color-text)' : '#000',
+                                    background: notification.read ? 'var(--color-surface)' : 'rgba(232, 197, 71, 0.15)',
+                                    border: notification.read ? '1px solid var(--color-border)' : '2px solid var(--color-primary)',
                                     borderRadius: 'var(--radius-md)',
                                     marginBottom: 'var(--spacing-sm)',
-                                    cursor: 'pointer',
                                 }}
                             >
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontWeight: 600 }}>Mesa {notification.tableId}</span>
-                                    <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                                    <span style={{ fontWeight: 600, fontSize: '1rem' }}>
+                                        {notification.type === 'waiter' ? '🔔' : '💳'} Mesa {notification.tableId}
+                                    </span>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                                         {new Date(notification.timestamp).toLocaleTimeString()}
                                     </span>
                                 </div>
-                                <p style={{ marginTop: 'var(--spacing-xs)', fontSize: '0.875rem' }}>{notification.message}</p>
+                                <p style={{ marginTop: 'var(--spacing-xs)', fontSize: '0.875rem', color: 'var(--color-text)' }}>
+                                    {notification.message}
+                                </p>
+                                {!notification.read && (
+                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-sm)' }}>
+                                        <button
+                                            onClick={() => {
+                                                if (notification.sessionId) {
+                                                    resolveServiceCall(notification.sessionId, notification.id);
+                                                }
+                                                markNotificationRead(notification.id);
+                                            }}
+                                            style={{
+                                                padding: '0.4rem 0.8rem',
+                                                background: 'var(--color-primary)',
+                                                border: 'none',
+                                                borderRadius: 'var(--radius-sm)',
+                                                color: '#000',
+                                                cursor: 'pointer',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            ✓ Atendido
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ))
                     )}
@@ -308,11 +358,11 @@ export const AdminDashboard: React.FC = () => {
                         <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
                             <input
                                 type="text"
-                                placeholder="Número de mesa..."
+                                placeholder="n°"
                                 value={tableNumber}
                                 onChange={(e) => setTableNumber(e.target.value)}
                                 className="form-input"
-                                style={{ flex: 1 }}
+                                style={{ flex: 1, flexBasis: '10%' }}
                             />
                             <button onClick={handleAddSingleTable} className="form-button" style={{ marginTop: 0 }}>
                                 AGREGAR

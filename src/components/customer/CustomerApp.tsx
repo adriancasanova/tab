@@ -4,7 +4,7 @@ import { Menu } from './Menu';
 import { OrderSummary } from './OrderSummary';
 
 export const CustomerApp: React.FC = () => {
-    const { session, currentUser, callWaiter, requestBill, addConsumerToSession, leaveSession } = useApp();
+    const { session, currentUser, callWaiter, /*requestBill,*/ addConsumerToSession, leaveSession } = useApp();
     const [activeTab, setActiveTab] = useState<'menu' | 'bill'>('menu');
     const [showAddPerson, setShowAddPerson] = useState(false);
     const [newPersonName, setNewPersonName] = useState('');
@@ -24,7 +24,7 @@ export const CustomerApp: React.FC = () => {
                 <div style={{ width: 60, height: 2, background: '#fff', margin: '0 auto var(--spacing-md)' }} />
                 <h1 className="page-title">MESA {session?.tableId}</h1>
                 <p className="page-subtitle">
-                    {currentUser?.name} • {session?.consumers.length || 0} persona(s)
+                    {currentUser?.name} • {session?.consumers?.length || 0} persona(s)
                 </p>
 
                 {/* People at table */}
@@ -35,7 +35,7 @@ export const CustomerApp: React.FC = () => {
                     marginTop: 'var(--spacing-md)',
                     flexWrap: 'wrap'
                 }}>
-                    {session?.consumers.map((consumer) => (
+                    {session?.consumers?.map((consumer) => (
                         <span
                             key={consumer.id}
                             style={{
@@ -149,12 +149,12 @@ export const CustomerApp: React.FC = () => {
                 >
                     🔔 MOZO
                 </button>
-                <button
+               {/* <button
                     className="nav-button inactive"
                     onClick={requestBill}
                 >
                     💳 CUENTA
-                </button>
+                </button> */}
                 <button
                     className="nav-button inactive"
                     onClick={leaveSession}

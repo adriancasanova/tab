@@ -110,21 +110,57 @@ export class RestaurantController {
                 orderBy: { startedAt: 'desc' },
             });
 
-            // Calculate totals for each session
-            const sessionsWithTotals = sessions.map(session => {
-                const orderItems = session.order?.items || [];
-                const total = orderItems.reduce((sum: number, item: any) => {
-                    return sum + Number(item.unitPrice) * item.quantity;
-                }, 0);
+            // Map to frontend Session shape:
+            // - Prisma `order` (singular) → frontend `orders` (array)
+            // - Prisma `startedAt` → frontend `startTime`
+            // - Ensure `status` is lowercase for frontend
+            // - Map `serviceCalls` timestamps
+            const sessionsForFrontend = sessions.map(session => {
+                const orders = session.order ? [{
+                    id: session.order.id,
+                    sessionId: session.order.sessionId,
+                    items: session.order.items.map((item: any) => ({
+                        id: item.id,
+                        productId: item.productId,
+                        product: {
+                            ...item.product,
+                            price: Number(item.product.price),
+                        },
+                        quantity: item.quantity,
+                        consumerIds: item.consumers?.map((c: any) => c.consumerId) || [],
+                        status: item.status.toLowerCase(),
+                        timestamp: new Date(item.createdAt).getTime(),
+                    })),
+                    status: session.order.status.toLowerCase(),
+                    createdAt: new Date(session.order.createdAt).getTime(),
+                }] : [];
 
                 return {
-                    ...session,
-                    totalAmount: total,
-                    pendingCallsCount: session.serviceCalls.length,
+                    id: session.id,
+                    tableId: session.table.number,
+                    businessId: session.table.restaurantId,
+                    status: session.status.toLowerCase(),
+                    startTime: new Date(session.startedAt).getTime(),
+                    endTime: session.endedAt ? new Date(session.endedAt).getTime() : undefined,
+                    consumers: session.consumers.map(c => ({
+                        id: c.id,
+                        sessionId: c.sessionId,
+                        name: c.name,
+                        isGuest: false,
+                        visitCount: 1,
+                    })),
+                    orders,
+                    serviceCalls: session.serviceCalls.map(sc => ({
+                        id: sc.id,
+                        sessionId: sc.sessionId || '',
+                        type: sc.type.toLowerCase(),
+                        status: sc.status.toLowerCase(),
+                        timestamp: new Date(sc.createdAt).getTime(),
+                    })),
                 };
             });
 
-            res.json({ success: true, data: sessionsWithTotals });
+            res.json({ success: true, data: sessionsForFrontend });
         } catch (error) {
             next(error);
         }
