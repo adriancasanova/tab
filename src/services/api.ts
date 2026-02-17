@@ -174,5 +174,13 @@ export const api = {
         return request<void>(`/products/${productId}`, {
             method: 'DELETE',
         });
-    }
+    },
+
+    // Order Items (Admin)
+    updateOrderItemStatus: async (itemId: string, status: string) => {
+        return request<any>(`/orders/items/${itemId}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
+        });
+    },
 };

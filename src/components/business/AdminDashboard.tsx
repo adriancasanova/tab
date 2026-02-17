@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { AdminMetrics } from './AdminMetrics';
+import { AdminOrders } from './AdminOrders';
 import type { Table } from '../../types';
 
 export const AdminDashboard: React.FC = () => {
@@ -34,7 +35,7 @@ export const AdminDashboard: React.FC = () => {
         refreshData();
     }, []);
 
-    const [activeTab, setActiveTab] = useState<'notifications' | 'tables' | 'products' | 'manage-tables' | 'metrics'>('notifications');
+    const [activeTab, setActiveTab] = useState<'notifications' | 'tables' | 'products' | 'manage-tables' | 'metrics' | 'orders'>('notifications');
 
     // Product form state
     const [showProductForm, setShowProductForm] = useState(false);
@@ -239,10 +240,16 @@ export const AdminDashboard: React.FC = () => {
                 <button onClick={() => setActiveTab('products')} className={`nav-button ${activeTab === 'products' ? 'active' : 'inactive'}`}>
                     🍽️ Productos ({products.length})
                 </button>
+                <button onClick={() => setActiveTab('orders')} className={`nav-button ${activeTab === 'orders' ? 'active' : 'inactive'}`}>
+                    🧾 Pedidos
+                </button>
             </div>
 
             {/* Metrics Tab */}
             {activeTab === 'metrics' && <AdminMetrics />}
+
+            {/* Orders / Comandas Tab */}
+            {activeTab === 'orders' && <AdminOrders />}
 
             {/* Notifications Tab */}
             {activeTab === 'notifications' && (

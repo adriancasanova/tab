@@ -50,4 +50,31 @@ export class OrderController {
             next(error);
         }
     }
+
+    async updateItemStatus(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const { status } = req.body;
+
+            const validStatuses = ['PENDING', 'PREPARING', 'SERVED', 'CANCELLED'];
+            if (!validStatuses.includes(status)) {
+                throw new AppError('Invalid status. Must be one of: PENDING, PREPARING, SERVED, CANCELLED', 400);
+            }
+
+            const item = await prisma.orderItem.findUnique({ where: { id: id as string } });
+            if (!item) {
+                throw new AppError('Order item not found', 404);
+            }
+
+            const updated = await prisma.orderItem.update({
+                where: { id: id as string },
+                data: { status },
+                include: { product: true },
+            });
+
+            res.json({ success: true, data: updated });
+        } catch (error) {
+            next(error);
+        }
+    }
 }
