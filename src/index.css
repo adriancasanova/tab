@@ -454,8 +454,8 @@ body {
 /*
 .logo-container {
   z-index: 10;
-  width: 90px;
-  height: 90px; 
+  width: 150px;
+  height: 150px; 
   background-color: transparent;
   background-image: url("./assets/logo.png");
   background-size: cover;
@@ -465,4 +465,5 @@ body {
  top: 20px;
  left: 20px;
  border-radius: 50%;
-} */
+} 
+*/
