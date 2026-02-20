@@ -53,6 +53,14 @@ export const api = {
         return request<Notification[]>(`/restaurants/${restaurantId}/notifications`);
     },
 
+    getSessionsByDate: async (restaurantId: string, from: string, to: string) => {
+        return request<Session[]>(`/restaurants/${restaurantId}/sessions?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    },
+
+    getNotificationsByDate: async (restaurantId: string, from: string, to: string) => {
+        return request<Notification[]>(`/restaurants/${restaurantId}/notifications?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    },
+
     // Tables
     createTable: async (restaurantId: string, number: string) => {
         return request<Table>(`/restaurants/${restaurantId}/tables`, {

@@ -20,6 +20,8 @@ interface AppContextType {
     tables: Table[];
     allSessions: Session[];
     notifications: Notification[];
+    filteredSessions: Session[];
+    filteredNotifications: Notification[];
     restaurantId: string | null;
     restaurantSlug: string;
     isLoading: boolean;
@@ -27,7 +29,7 @@ interface AppContextType {
 
     // Actions
     startSessionAtTable: (tableId: string, userData: { name: string }) => Promise<boolean>;
-    startGuestSession: (userData: { name: string }) => Promise<void>; // Not fully supported by backend yet, will mock or error
+    startGuestSession: (userData: { name: string }) => Promise<void>;
     joinSession: (sessionId: string, name: string) => Promise<void>;
     addConsumerToSession: (name: string) => Promise<void>;
     leaveSession: () => void;
@@ -37,11 +39,13 @@ interface AppContextType {
 
     // Services
     callWaiter: () => Promise<void>;
-    callWaiterWithoutSession: () => Promise<void>; // Mock for now
+    callWaiterWithoutSession: () => Promise<void>;
     requestBill: () => Promise<void>;
 
     // Admin
     refreshData: () => Promise<void>;
+    fetchSessionsByDate: (from: string, to: string) => Promise<void>;
+    fetchNotificationsByDate: (from: string, to: string) => Promise<void>;
     addProduct: (product: any) => Promise<void>;
     updateProduct: (product: Product) => Promise<void>;
     deleteProduct: (productId: string) => Promise<void>;
@@ -50,7 +54,7 @@ interface AppContextType {
     toggleTableEnabled: (tableId: string) => Promise<void>;
 
     // Notifications
-    markNotificationRead: (id: string) => void; // Local only for now or need endpoint
+    markNotificationRead: (id: string) => void;
     resolveServiceCall: (sessionId: string, callId: string) => Promise<void>;
 
     // Helpers & Stubs (Legacy support)
@@ -77,6 +81,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, restaurantSl
     const [tables, setTables] = useState<Table[]>([]);
     const [allSessions, setAllSessions] = useState<Session[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
+    const [filteredNotifications, setFilteredNotifications] = useState<Notification[]>([]);
     const [restaurantId, setRestaurantId] = useState<string | null>(null);
 
     const [isLoading, setIsLoading] = useState(true);
@@ -331,6 +337,26 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, restaurantSl
     const updateTable = async (id: string, num: string) => { await api.updateTable(id, num); await refreshData(); };
     const toggleTableEnabled = async (id: string) => { await api.toggleTable(id); await refreshData(); };
 
+    const fetchSessionsByDate = async (from: string, to: string) => {
+        if (!restaurantId) return;
+        try {
+            const sessions = await api.getSessionsByDate(restaurantId, from, to);
+            setFilteredSessions(sessions);
+        } catch (e) {
+            console.error('Error fetching sessions by date:', e);
+        }
+    };
+
+    const fetchNotificationsByDate = async (from: string, to: string) => {
+        if (!restaurantId) return;
+        try {
+            const notifs = await api.getNotificationsByDate(restaurantId, from, to);
+            setFilteredNotifications(notifs);
+        } catch (e) {
+            console.error('Error fetching notifications by date:', e);
+        }
+    };
+
     const resolveServiceCall = async (_sessionId: string, callId: string) => {
         await api.resolveServiceCall(callId);
         await refreshData();
@@ -349,6 +375,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, restaurantSl
             tables,
             allSessions,
             notifications,
+            filteredSessions,
+            filteredNotifications,
             restaurantId,
             restaurantSlug: activeSlug,
             isLoading,
@@ -363,6 +391,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, restaurantSl
             callWaiterWithoutSession,
             requestBill,
             refreshData,
+            fetchSessionsByDate,
+            fetchNotificationsByDate,
             addProduct,
             updateProduct,
             deleteProduct,

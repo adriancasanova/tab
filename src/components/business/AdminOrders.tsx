@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import type { Session, OrderItem } from '../../types';
+import { DateFilter } from '../common/DateFilter';
 
 const STATUS_LABELS: Record<string, string> = {
     pending: '⏳ Pendiente',
@@ -30,28 +31,56 @@ const NEXT_STATUS_LABEL: Record<string, string> = {
 };
 
 export const AdminOrders: React.FC = () => {
-    const { allSessions, refreshData } = useApp();
+    const { filteredSessions, fetchSessionsByDate, refreshData } = useApp();
     const [searchFilter, setSearchFilter] = useState('');
     const [updatingItems, setUpdatingItems] = useState<Set<string>>(new Set());
+    const [isHistorical, setIsHistorical] = useState(false);
 
-    // Filter active/payment_pending sessions that have orders
-    const activeSessions = allSessions
-        .filter(s => s.status === 'active' || s.status === 'payment_pending')
-        .filter(s => s.orders.length > 0 && s.orders.some(o => o.items.length > 0))
+    // Load today's data on mount
+    useEffect(() => {
+        const now = new Date();
+        const from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+        const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+        fetchSessionsByDate(from, to);
+    }, []);
+
+    const handleDateChange = (from: string, to: string) => {
+        fetchSessionsByDate(from, to);
+        // Check if filter is for today
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+        setIsHistorical(from !== todayStart || to !== todayEnd);
+    };
+
+    // For today: only active/payment_pending. For historical: all sessions with orders
+    const displaySessions = filteredSessions
+        .filter(s => {
+            if (isHistorical) {
+                return s.orders.length > 0 && s.orders.some(o => o.items.length > 0);
+            }
+            return (s.status === 'active' || s.status === 'payment_pending')
+                && s.orders.length > 0 && s.orders.some(o => o.items.length > 0);
+        })
         .sort((a, b) => b.startTime - a.startTime);
 
     // Apply table search filter
-    const filteredSessions = searchFilter.trim()
-        ? activeSessions.filter(s =>
+    const filteredDisplaySessions = searchFilter.trim()
+        ? displaySessions.filter(s =>
             s.tableId.toLowerCase().includes(searchFilter.toLowerCase())
         )
-        : activeSessions;
+        : displaySessions;
 
     const handleStatusChange = async (itemId: string, newStatus: string) => {
         setUpdatingItems(prev => new Set(prev).add(itemId));
         try {
             await api.updateOrderItemStatus(itemId, newStatus);
             await refreshData();
+            // Refresh date-filtered data too
+            const now = new Date();
+            const from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+            const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+            await fetchSessionsByDate(from, to);
         } catch (error: any) {
             console.error('Error updating item status:', error);
             alert(`Error: ${error.message || 'No se pudo actualizar el estado'}`);
@@ -78,8 +107,23 @@ export const AdminOrders: React.FC = () => {
         );
     };
 
+    const SESSION_STATUS_LABELS: Record<string, string> = {
+        active: 'Activa',
+        payment_pending: 'Cuenta pedida',
+        closed: 'Cerrada',
+    };
+
+    const SESSION_STATUS_COLORS: Record<string, string> = {
+        active: 'var(--color-primary)',
+        payment_pending: '#ff9800',
+        closed: '#666',
+    };
+
     return (
         <div className="menu-section">
+            {/* Date Filter */}
+            <DateFilter onChange={handleDateChange} />
+
             {/* Search bar */}
             <div style={{
                 marginBottom: 'var(--spacing-lg)',
@@ -127,7 +171,7 @@ export const AdminOrders: React.FC = () => {
                     fontSize: '0.85rem',
                     color: 'var(--color-text-muted)',
                 }}>
-                    🧾 {filteredSessions.length} mesa{filteredSessions.length !== 1 ? 's' : ''} con pedidos
+                    🧾 {filteredDisplaySessions.length} mesa{filteredDisplaySessions.length !== 1 ? 's' : ''} con pedidos
                 </div>
                 <div style={{
                     padding: 'var(--spacing-sm) var(--spacing-md)',
@@ -136,12 +180,12 @@ export const AdminOrders: React.FC = () => {
                     fontSize: '0.85rem',
                     color: '#ff9800',
                 }}>
-                    ⏳ {filteredSessions.reduce((acc, s) => acc + getPendingCount(s), 0)} items pendientes
+                    ⏳ {filteredDisplaySessions.reduce((acc, s) => acc + getPendingCount(s), 0)} items pendientes
                 </div>
             </div>
 
             {/* Empty state */}
-            {filteredSessions.length === 0 ? (
+            {filteredDisplaySessions.length === 0 ? (
                 <div style={{
                     textAlign: 'center',
                     padding: 'var(--spacing-xl) var(--spacing-md)',
@@ -151,17 +195,22 @@ export const AdminOrders: React.FC = () => {
                     <p style={{ fontSize: '1rem' }}>
                         {searchFilter
                             ? `No se encontraron pedidos para mesa "${searchFilter}"`
-                            : 'No hay pedidos activos en este momento'}
+                            : isHistorical
+                                ? 'No hay pedidos en este período'
+                                : 'No hay pedidos activos en este momento'}
                     </p>
                     <p style={{ fontSize: '0.85rem', marginTop: 'var(--spacing-sm)' }}>
-                        Los pedidos aparecerán aquí cuando los clientes ordenen desde sus mesas
+                        {isHistorical
+                            ? 'Probá con otro rango de fechas'
+                            : 'Los pedidos aparecerán aquí cuando los clientes ordenen desde sus mesas'}
                     </p>
                 </div>
             ) : (
                 /* Table cards */
-                filteredSessions.map(session => {
+                filteredDisplaySessions.map(session => {
                     const total = getSessionTotal(session);
                     const pendingCount = getPendingCount(session);
+                    const isActive = session.status === 'active' || session.status === 'payment_pending';
 
                     return (
                         <div
@@ -170,16 +219,17 @@ export const AdminOrders: React.FC = () => {
                                 background: 'var(--color-surface)',
                                 borderRadius: 'var(--radius-lg)',
                                 marginBottom: 'var(--spacing-lg)',
-                                border: pendingCount > 0
+                                border: pendingCount > 0 && isActive
                                     ? '2px solid var(--color-primary)'
                                     : '1px solid var(--color-border)',
                                 overflow: 'hidden',
+                                opacity: isActive ? 1 : 0.8,
                             }}
                         >
                             {/* Card header */}
                             <div style={{
                                 padding: 'var(--spacing-md) var(--spacing-lg)',
-                                background: pendingCount > 0
+                                background: pendingCount > 0 && isActive
                                     ? 'rgba(232, 197, 71, 0.08)'
                                     : 'transparent',
                                 display: 'flex',
@@ -194,13 +244,13 @@ export const AdminOrders: React.FC = () => {
                                     <span style={{
                                         padding: '0.2rem 0.6rem',
                                         borderRadius: 'var(--radius-sm)',
-                                        background: session.status === 'payment_pending' ? '#ff9800' : 'var(--color-primary)',
+                                        background: SESSION_STATUS_COLORS[session.status] || '#666',
                                         color: '#000',
                                         fontSize: '0.7rem',
                                         fontWeight: 700,
                                         textTransform: 'uppercase',
                                     }}>
-                                        {session.status === 'payment_pending' ? 'Cuenta pedida' : 'Activa'}
+                                        {SESSION_STATUS_LABELS[session.status] || session.status}
                                     </span>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
@@ -291,8 +341,8 @@ export const AdminOrders: React.FC = () => {
                                                 ${(item.product.price * item.quantity).toLocaleString()}
                                             </span>
 
-                                            {/* Action button */}
-                                            {NEXT_STATUS[item.status] && (
+                                            {/* Action button - only for active sessions */}
+                                            {isActive && NEXT_STATUS[item.status] && (
                                                 <button
                                                     onClick={() => handleStatusChange(item.id, NEXT_STATUS[item.status]!)}
                                                     disabled={updatingItems.has(item.id)}

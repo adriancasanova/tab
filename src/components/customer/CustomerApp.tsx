@@ -22,7 +22,7 @@ export const CustomerApp: React.FC = () => {
             {/* Header */}
             <header className="page-header">
                 <div style={{ width: 60, height: 2, background: '#fff', margin: '0 auto var(--spacing-md)' }} />
-                <h1 className="page-title">MESA {session?.tableId}</h1>
+                <h1 className="page-title">MESA {session?.tableId} </h1>
                 <p className="page-subtitle">
                     {currentUser?.name} • {session?.consumers?.length || 0} persona(s)
                 </p>

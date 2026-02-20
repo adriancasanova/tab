@@ -17,6 +17,9 @@ router.use(requireActiveSubscription);
 // GET /api/v1/restaurants/:id/active-sessions - Get active sessions (admin)
 router.get('/:id/active-sessions', controller.getActiveSessions);
 
+// GET /api/v1/restaurants/:id/sessions?from=&to= - Get sessions by date range (admin)
+router.get('/:id/sessions', controller.getSessionsByDate);
+
 // GET /api/v1/restaurants/:id/notifications - Get pending notifications (admin)
 router.get('/:id/notifications', controller.getNotifications);
 
