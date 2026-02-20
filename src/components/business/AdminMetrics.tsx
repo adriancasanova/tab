@@ -1,15 +1,28 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { DateFilter } from '../common/DateFilter';
 
 export const AdminMetrics: React.FC = () => {
-    const { allSessions, products, tables } = useApp();
+    const { filteredSessions, products, tables, fetchSessionsByDate } = useApp();
+
+    // Load today's data on mount
+    useEffect(() => {
+        const now = new Date();
+        const from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+        const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+        fetchSessionsByDate(from, to);
+    }, []);
+
+    const handleDateChange = (from: string, to: string) => {
+        fetchSessionsByDate(from, to);
+    };
 
     const stats = useMemo(() => {
         let totalRevenue = 0;
         let totalOrders = 0;
         const productSales: Record<string, { quantity: number, revenue: number }> = {};
 
-        allSessions.forEach(session => {
+        filteredSessions.forEach(session => {
             session.orders.forEach(order => {
                 totalOrders++;
                 order.items.forEach(item => {
@@ -48,7 +61,7 @@ export const AdminMetrics: React.FC = () => {
             averageTicket,
             topProducts
         };
-    }, [allSessions, products]);
+    }, [filteredSessions, products]);
 
     const activeTablesCount = tables.filter(t => t.currentSessionId).length;
     const totalTablesCount = tables.length;
@@ -60,6 +73,9 @@ export const AdminMetrics: React.FC = () => {
 
     return (
         <div className="fade-in">
+            {/* Date Filter */}
+            <DateFilter onChange={handleDateChange} />
+
             {/* KPI Grid */}
             <div style={{
                 display: 'grid',
@@ -112,7 +128,7 @@ export const AdminMetrics: React.FC = () => {
             <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Productos Más Vendidos</h3>
             <div className="card" style={{ padding: 'var(--spacing-md)', background: 'var(--color-surface)' }}>
                 {stats.topProducts.length === 0 ? (
-                    <p className="text-muted text-center py-md">No hay datos de ventas aún.</p>
+                    <p className="text-muted text-center py-md">No hay datos de ventas en este período.</p>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
                         {stats.topProducts.map((product, index) => (

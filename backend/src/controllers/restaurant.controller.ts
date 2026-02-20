@@ -166,21 +166,134 @@ export class RestaurantController {
         }
     }
 
+    // Get sessions filtered by date range (all statuses)
+    async getSessionsByDate(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const restaurantId = String(id);
+
+            // Parse date range from query params, default to today
+            const now = new Date();
+            let fromDate: Date;
+            let toDate: Date;
+
+            if (req.query.from) {
+                fromDate = new Date(req.query.from as string);
+            } else {
+                fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+            }
+
+            if (req.query.to) {
+                toDate = new Date(req.query.to as string);
+            } else {
+                toDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+            }
+
+            const sessions = await prisma.session.findMany({
+                where: {
+                    table: { restaurantId },
+                    startedAt: {
+                        gte: fromDate,
+                        lte: toDate,
+                    },
+                },
+                include: {
+                    table: true,
+                    consumers: true,
+                    order: {
+                        include: {
+                            items: {
+                                include: {
+                                    product: true,
+                                    consumers: { include: { consumer: true } },
+                                },
+                            },
+                        },
+                    },
+                    serviceCalls: true,
+                },
+                orderBy: { startedAt: 'desc' },
+            });
+
+            // Map to frontend shape (same as getActiveSessions)
+            const sessionsForFrontend = sessions.map(session => {
+                const orders = session.order ? [{
+                    id: session.order.id,
+                    sessionId: session.order.sessionId,
+                    items: session.order.items.map((item: any) => ({
+                        id: item.id,
+                        productId: item.productId,
+                        product: {
+                            ...item.product,
+                            price: Number(item.product.price),
+                        },
+                        quantity: item.quantity,
+                        consumerIds: item.consumers?.map((c: any) => c.consumerId) || [],
+                        status: item.status.toLowerCase(),
+                        timestamp: new Date(item.createdAt).getTime(),
+                    })),
+                    status: session.order.status.toLowerCase(),
+                    createdAt: new Date(session.order.createdAt).getTime(),
+                }] : [];
+
+                return {
+                    id: session.id,
+                    tableId: session.table.number,
+                    businessId: session.table.restaurantId,
+                    status: session.status.toLowerCase(),
+                    startTime: new Date(session.startedAt).getTime(),
+                    endTime: session.endedAt ? new Date(session.endedAt).getTime() : undefined,
+                    consumers: session.consumers.map(c => ({
+                        id: c.id,
+                        sessionId: c.sessionId,
+                        name: c.name,
+                        isGuest: false,
+                        visitCount: 1,
+                    })),
+                    orders,
+                    serviceCalls: session.serviceCalls.map(sc => ({
+                        id: sc.id,
+                        sessionId: sc.sessionId || '',
+                        type: sc.type.toLowerCase(),
+                        status: sc.status.toLowerCase(),
+                        timestamp: new Date(sc.createdAt).getTime(),
+                    })),
+                };
+            });
+
+            res.json({ success: true, data: sessionsForFrontend });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async getNotifications(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
             const restaurantId = String(id);
 
-            // Get pending service calls as notifications (both session and entrance calls)
-            // Using explicit type casting for Prisma 'OR' query to avoid TS issues with generated client
+            // Build where clause based on whether date range is provided
+            const hasDateFilter = req.query.from && req.query.to;
+            const whereClause: any = {
+                OR: [
+                    { restaurantId: restaurantId },
+                    { session: { table: { restaurantId: restaurantId } } }
+                ],
+            };
+
+            if (hasDateFilter) {
+                // Historical mode: return all statuses within date range
+                whereClause.createdAt = {
+                    gte: new Date(req.query.from as string),
+                    lte: new Date(req.query.to as string),
+                };
+            } else {
+                // Default mode: only pending
+                whereClause.status = 'PENDING';
+            }
+
             const serviceCalls = await prisma.serviceCall.findMany({
-                where: {
-                    status: 'PENDING',
-                    OR: [
-                        { restaurantId: restaurantId },
-                        { session: { table: { restaurantId: restaurantId } } }
-                    ]
-                } as any, // Cast to any to bypass strict type check if schema is slightly out of sync
+                where: whereClause,
                 include: {
                     session: { include: { table: true } },
                 },
@@ -191,7 +304,6 @@ export class RestaurantController {
                 let message = '';
                 let tableId = '';
 
-                // Safely access session and table
                 if (call.session && call.session.table) {
                     tableId = call.session.table.number;
                     message = call.type === 'WAITER'
@@ -209,7 +321,8 @@ export class RestaurantController {
                     sessionId: call.sessionId,
                     tableId,
                     timestamp: new Date(call.createdAt).getTime(),
-                    read: false,
+                    read: call.status === 'RESOLVED',
+                    status: call.status.toLowerCase(),
                 };
             });
 

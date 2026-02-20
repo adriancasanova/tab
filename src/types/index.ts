@@ -80,6 +80,7 @@ export interface Notification {
   tableId: string;
   timestamp: number;
   read: boolean;
+  status?: string;
 }
 
 // Business Analytics Types
